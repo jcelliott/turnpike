@@ -5,7 +5,7 @@ import (
 	"code.google.com/p/go.net/websocket"
 	"encoding/json"
 	"github.com/nu7hatch/gouuid"
-	"log"
+	log "github.com/jcelliott/lumber"
 	"sync"
 	"turnpike/wamp"
 )
@@ -13,7 +13,7 @@ import (
 var serverBacklog = 10
 
 type Server struct {
-	clients map[string]chan<- []byte
+	clients map[string]chan<- string
 	// this is a map because it cheaply prevents a client from subscribing multiple times
 	// the nice side-effect here is it's easy to unsubscribe
 	subscriptions map[string]map[string]bool
@@ -22,17 +22,25 @@ type Server struct {
 
 func NewServer() *Server {
 	return &Server{
-		clients:       make(map[string]chan<- []byte),
+		clients:       make(map[string]chan<- string),
 		subscriptions: make(map[string]map[string]bool),
 		subLock:       new(sync.Mutex)}
 }
 
 func (t *Server) handlePrefix(id string, msg wamp.PrefixMsg) {
-	panic("not implemented")
+	log.Error("Attempt to call prefix, which is not implemented; ignoring")
 }
 
 func (t *Server) handleCall(id string, msg wamp.CallMsg) {
-	panic("not implemented")
+	out, err := wamp.CallError(msg.CallID, "error:notimplemented", "RPC not implemented")
+	if err != nil {
+		// whatever, let the client hang...
+		log.Fatal("Error creating callError message: %s", err)
+		return
+	}
+	if client, ok := t.clients[id]; ok {
+		client <- string(out)
+	}
 }
 
 func (t *Server) handleSubscribe(id string, msg wamp.SubscribeMsg) {
@@ -61,7 +69,7 @@ func (t *Server) handlePublish(id string, msg wamp.PublishMsg) {
 
 	out, err := wamp.Event(msg.TopicURI, msg.Event)
 	if err != nil {
-		log.Println("Error creating event message:", err)
+		log.Error("Error creating event message: %s", err)
 		return
 	}
 
@@ -107,7 +115,7 @@ func (t *Server) handlePublish(id string, msg wamp.PublishMsg) {
 		// to make sure the client didn't disconnecct in the
 		// last few nanoseconds...
 		if client, ok := t.clients[tid]; ok {
-			client <- out
+			client <- string(out)
 		}
 	}
 }
@@ -115,83 +123,91 @@ func (t *Server) handlePublish(id string, msg wamp.PublishMsg) {
 func (t *Server) HandleWebsocket(conn *websocket.Conn) {
 	defer conn.Close()
 
+	log.Debug("Received websocket connection")
+
 	tid, err := uuid.NewV4()
 	if err != nil {
-		panic(err)
+		log.Error("Could not create unique id, refusing client connection")
+		return
 	}
 	id := tid.String()
 
 	arr, err := wamp.Welcome(id)
 	if err != nil {
-		log.Println("Error encoding welcome message")
+		log.Error("Error encoding welcome message")
 		return
 	}
-	err = websocket.Message.Send(conn, arr)
+	log.Trace("Sending welcome message: %s", arr)
+	err = websocket.Message.Send(conn, string(arr))
 	if err != nil {
-		log.Println("Error sending welcome message, aborting connection")
+		log.Error("Error sending welcome message, aborting connection: %s", err)
 		return
 	}
 
-	c := make(chan []byte, serverBacklog)
+	c := make(chan string, serverBacklog)
 	t.clients[id] = c
 
 	go func() {
 		for msg := range c {
-			err := websocket.Message.Send(conn, msg)
+			log.Trace("Sending message: %s", msg)
+			err := websocket.Message.Send(conn, string(msg))
 			if err != nil {
-				log.Println("Error sending message:", err)
+				log.Error("Error sending message: %s", err)
 			}
 		}
 	}()
 
 	for {
-		var data []byte
-		err := websocket.Message.Receive(conn, &data)
+		var rec string
+		err := websocket.Message.Receive(conn, &rec)
 		if err != nil {
-			log.Println("Error receiving message, aborting connection")
+			log.Error("Error receiving message, aborting connection: %s", err)
 			break
 		}
+		log.Trace("Message received: %s", rec)
 
-		switch typ := wamp.ParseType(data); typ {
+		data := []byte(rec)
+
+		switch typ := wamp.ParseType(rec); typ {
 		case wamp.TYPE_ID_PREFIX:
 			var msg wamp.PrefixMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
-				log.Println("Error unmarshalling prefix message:", err)
+				log.Error("Error unmarshalling prefix message: %s", err)
 			}
 			t.handlePrefix(id, msg)
 		case wamp.TYPE_ID_CALL:
 			var msg wamp.CallMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
-				log.Println("Error unmarshalling prefix message:", err)
+				log.Error("Error unmarshalling prefix message: %s", err)
 			}
 			t.handleCall(id, msg)
 		case wamp.TYPE_ID_SUBSCRIBE:
 			var msg wamp.SubscribeMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
-				log.Println("Error unmarshalling prefix message:", err)
+				log.Error("Error unmarshalling prefix message: %s", err)
 			}
 			t.handleSubscribe(id, msg)
 		case wamp.TYPE_ID_UNSUBSCRIBE:
 			var msg wamp.UnsubscribeMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
-				log.Println("Error unmarshalling prefix message:", err)
+				log.Error("Error unmarshalling prefix message: %s", err)
 			}
 			t.handleUnsubscribe(id, msg)
 		case wamp.TYPE_ID_PUBLISH:
 			var msg wamp.PublishMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
-				log.Println("Error unmarshalling prefix message:", err)
+				log.Error("Error unmarshalling prefix message: %s", err)
 			}
 			t.handlePublish(id, msg)
 		case wamp.TYPE_ID_WELCOME, wamp.TYPE_ID_CALLRESULT, wamp.TYPE_ID_CALLERROR, wamp.TYPE_ID_EVENT:
-			log.Println("Server -> client message received, ignored:", typ)
+			log.Error("Server -> client message received, ignored: %s", typ)
 		default:
-			log.Println("Invalid message format, message dropped:", string(data))
+			log.Error("Invalid message format, message dropped: %s", data)
 		}
 	}
 

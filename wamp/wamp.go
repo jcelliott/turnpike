@@ -44,12 +44,12 @@ func (e *WAMPError) Error() string {
 	return "wamp: " + e.Msg
 }
 
-func ParseType(msg []byte) int {
-	match := typeReg.FindSubmatch(msg)
+func ParseType(msg string) int {
+	match := typeReg.FindStringSubmatch(msg)
 	if match == nil {
 		return -1
 	}
-	i, _ := strconv.Atoi(string(match[1]))
+	i, _ := strconv.Atoi(match[1])
 	return i
 }
 
