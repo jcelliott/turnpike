@@ -301,8 +301,8 @@ type PublishMsg struct {
 	TopicURI     string
 	Event        interface{}
 	ExcludeMe    bool
-	ExcludeList  []interface{}
-	EligibleList []interface{}
+	ExcludeList  []string
+	EligibleList []string
 }
 
 func (msg *PublishMsg) UnmarshalJSON(jsonData []byte) error {
@@ -321,12 +321,27 @@ func (msg *PublishMsg) UnmarshalJSON(jsonData []byte) error {
 	msg.Event = data[2]
 	if len(data) > 3 {
 		if msg.ExcludeMe, ok = data[3].(bool); !ok {
-			if msg.ExcludeList, ok = data[3].([]interface{}); !ok {
+			var arr []interface{}
+			if arr, ok = data[3].([]interface{}); !ok && data[3] != nil {
 				return &WAMPError{"invalid exclude argument"}
 			}
+			for _, v := range arr {
+				if val, ok := v.(string); !ok {
+					return &WAMPError{"invalid exclude list"}
+				} else {
+					msg.ExcludeList = append(msg.ExcludeList, val)
+				}
+			}
 			if len(data) == 5 {
-				if msg.EligibleList, ok = data[4].([]interface{}); !ok {
-					return &WAMPError{"invalid eligible list"}
+				if arr, ok = data[4].([]interface{}); !ok && data[3] != nil {
+					return &WAMPError{"invalid eligable list"}
+				}
+				for _, v := range arr {
+					if val, ok := v.(string); !ok {
+						return &WAMPError{"invalid eligable list"}
+					} else {
+						msg.EligibleList = append(msg.EligibleList, val)
+					}
 				}
 			}
 		}
