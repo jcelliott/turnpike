@@ -2,27 +2,39 @@
 package turnpike
 
 import (
-	"turnpike/wamp"
 	"code.google.com/p/go.net/websocket"
+	"encoding/json"
 	"github.com/nu7hatch/gouuid"
 	"log"
-	"encoding/json"
+	"sync"
+	"turnpike/wamp"
 )
 
 var backlog = 10
 
 type WAMPClient struct {
-	Out chan<- []byte
+	Out  chan<- []byte
 	conn *websocket.Conn
 }
 
 type Turnpike struct {
 	clients map[string]WAMPClient
+	// this is a map because it cheaply prevents a client from subscribing multiple times
+	// the nice side-effect here is it's easy to unsubscribe
+	subscriptions map[string]map[string]bool
+	subLock       *sync.Mutex
+}
+
+func New() *Turnpike {
+	return &Turnpike{
+		clients:       make(map[string]WAMPClient),
+		subscriptions: make(map[string]map[string]bool),
+		subLock:       new(sync.Mutex)}
 }
 
 // HandleWebsocket is a Go1.0 shim to imitate Turnpike#HandleWebsocket
 func HandleWebsocket(t *Turnpike) func(*websocket.Conn) {
-	return func (conn *websocket.Conn) {
+	return func(conn *websocket.Conn) {
 		t.HandleWebsocket(conn)
 	}
 }
@@ -36,15 +48,80 @@ func (t *Turnpike) handleCall(id string, msg wamp.CallMsg) {
 }
 
 func (t *Turnpike) handleSubscribe(id string, msg wamp.SubscribeMsg) {
-	panic("not implemented")
+	t.subLock.Lock()
+	evt := msg.TopicURI
+	if _, ok := t.subscriptions[evt]; !ok {
+		t.subscriptions[evt] = make(map[string]bool)
+	}
+	t.subscriptions[evt][id] = true
+	t.subLock.Unlock()
 }
 
 func (t *Turnpike) handleUnsubscribe(id string, msg wamp.UnsubscribeMsg) {
-	panic("not implemented")
+	t.subLock.Lock()
+	if tmap, ok := t.subscriptions[msg.TopicURI]; ok {
+		delete(tmap, id)
+	}
+	t.subLock.Unlock()
 }
 
 func (t *Turnpike) handlePublish(id string, msg wamp.PublishMsg) {
-	panic("not implemented")
+	tmap, ok := t.subscriptions[msg.TopicURI]
+	if !ok {
+		return
+	}
+
+	out, err := wamp.Event(msg.TopicURI, msg.Event)
+	if err != nil {
+		log.Println("Error creating event message:", err)
+		return
+	}
+
+	var sendTo []string
+	if len(msg.ExcludeList) > 0 || len(msg.EligibleList) > 0 {
+		// this is super ugly, but I couldn't think of a better way...
+		for tid := range tmap {
+			include := true
+			for _, _tid := range msg.ExcludeList {
+				if tid == _tid {
+					include = false
+					break
+				}
+			}
+			if include {
+				sendTo = append(sendTo, tid)
+			}
+		}
+
+		for _, tid := range msg.EligibleList {
+			include := true
+			for _, _tid := range sendTo {
+				if _tid == tid {
+					include = false
+					break
+				}
+			}
+			if include {
+				sendTo = append(sendTo, tid)
+			}
+		}
+	} else {
+		for tid := range tmap {
+			if tid == id && msg.ExcludeMe {
+				continue
+			}
+			sendTo = append(sendTo, tid)
+		}
+	}
+
+	for _, tid := range sendTo {
+		// we're not locking anything, so we need
+		// to make sure the client didn't disconnecct in the
+		// last few nanoseconds...
+		if client, ok := t.clients[tid]; ok {
+			client.Out <- out
+		}
+	}
 }
 
 func (t *Turnpike) HandleWebsocket(conn *websocket.Conn) {
@@ -70,7 +147,7 @@ func (t *Turnpike) HandleWebsocket(conn *websocket.Conn) {
 	c := make(chan []byte, backlog)
 	t.clients[id] = WAMPClient{c, conn}
 
-	go func () {
+	go func() {
 		for msg := range c {
 			err := websocket.Message.Send(conn, msg)
 			if err != nil {
