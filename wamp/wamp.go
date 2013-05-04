@@ -4,6 +4,8 @@ package wamp
 import (
 	"encoding/json"
 	"net/url"
+	"regexp"
+	"strconv"
 )
 
 const (
@@ -23,6 +25,7 @@ const PROTOCOL_VERSION = 1
 var (
 	// this should be changed for another server using this WAMP protocol implementation
 	ServerIdent = "turnpike-0.1.0"
+	typeReg     = regexp.MustCompile("^\\s*\\[\\s*(\\d+)\\s*,")
 )
 
 // A WAMPError is returned when attempting to create a message that does not follow the WAMP
@@ -41,7 +44,14 @@ func (e *WAMPError) Error() string {
 	return "wamp: " + e.Msg
 }
 
-// TODO: function to determine what type of message it is
+func ParseType(msg []byte) int {
+	match := typeReg.FindSubmatch(msg)
+	if match == nil {
+		return -1
+	}
+	i, _ := strconv.Atoi(string(match[1]))
+	return i
+}
 
 // WELCOME
 type WelcomeMsg struct {
