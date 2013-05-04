@@ -476,3 +476,13 @@ func TestParseEvent(t *testing.T) {
 	assert.Equal(t, 17.3, msg.Event.(map[string]interface{})["value"])
 	assert.Equal(t, 3, msg.Event.(map[string]interface{})["list"].([]interface{})[2])
 }
+
+func TestParseType(t *testing.T) {
+	data := []byte(`[8,"http://example.com/api/test",null]`)
+	i := ParseType(data)
+	assert.Equal(t, TYPE_ID_EVENT, i)
+
+	data = []byte(`[true,"blah"]`)
+	i = ParseType(data)
+	assert.Equal(t, -1, i)
+}
