@@ -4,8 +4,8 @@ package turnpike
 import (
 	"code.google.com/p/go.net/websocket"
 	"encoding/json"
-	"github.com/nu7hatch/gouuid"
 	log "github.com/jcelliott/lumber"
+	"github.com/nu7hatch/gouuid"
 	"sync"
 	"turnpike/wamp"
 )
@@ -180,28 +180,28 @@ func (t *Server) HandleWebsocket(conn *websocket.Conn) {
 			var msg wamp.CallMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
-				log.Error("Error unmarshalling prefix message: %s", err)
+				log.Error("Error unmarshalling call message: %s", err)
 			}
 			t.handleCall(id, msg)
 		case wamp.TYPE_ID_SUBSCRIBE:
 			var msg wamp.SubscribeMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
-				log.Error("Error unmarshalling prefix message: %s", err)
+				log.Error("Error unmarshalling subscribe message: %s", err)
 			}
 			t.handleSubscribe(id, msg)
 		case wamp.TYPE_ID_UNSUBSCRIBE:
 			var msg wamp.UnsubscribeMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
-				log.Error("Error unmarshalling prefix message: %s", err)
+				log.Error("Error unmarshalling unsubscribe message: %s", err)
 			}
 			t.handleUnsubscribe(id, msg)
 		case wamp.TYPE_ID_PUBLISH:
 			var msg wamp.PublishMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
-				log.Error("Error unmarshalling prefix message: %s", err)
+				log.Error("Error unmarshalling publish message: %s", err)
 			}
 			t.handlePublish(id, msg)
 		case wamp.TYPE_ID_WELCOME, wamp.TYPE_ID_CALLRESULT, wamp.TYPE_ID_CALLERROR, wamp.TYPE_ID_EVENT:
