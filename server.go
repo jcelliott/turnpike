@@ -10,28 +10,44 @@ import (
 	"turnpike/wamp"
 )
 
+func init() {
+	log.Level(log.TRACE)
+}
+
 var serverBacklog = 10
 
 type Server struct {
 	clients map[string]chan<- string
 	// this is a map because it cheaply prevents a client from subscribing multiple times
 	// the nice side-effect here is it's easy to unsubscribe
+	//               topicID     client
 	subscriptions map[string]map[string]bool
-	subLock       *sync.Mutex
+	//                client      prefixes
+	prefixes map[string]wamp.PrefixMap
+	subLock  *sync.Mutex
 }
 
 func NewServer() *Server {
 	return &Server{
 		clients:       make(map[string]chan<- string),
 		subscriptions: make(map[string]map[string]bool),
+		prefixes:      make(map[string]wamp.PrefixMap),
 		subLock:       new(sync.Mutex)}
 }
 
 func (t *Server) handlePrefix(id string, msg wamp.PrefixMsg) {
-	log.Error("Attempt to call prefix, which is not implemented; ignoring")
+	log.Debug("Handling prefix message")
+	if _, ok := t.prefixes[id]; !ok {
+		t.prefixes[id] = make(wamp.PrefixMap)
+	}
+	err := t.prefixes[id].RegisterPrefix(msg.Prefix, msg.URI)
+	if err != nil {
+		log.Error("Error registering prefix: %s", err)
+	}
 }
 
 func (t *Server) handleCall(id string, msg wamp.CallMsg) {
+	log.Warn("Handling call message - not implemented")
 	out, err := wamp.CallError(msg.CallID, "error:notimplemented", "RPC not implemented")
 	if err != nil {
 		// whatever, let the client hang...
@@ -44,30 +60,35 @@ func (t *Server) handleCall(id string, msg wamp.CallMsg) {
 }
 
 func (t *Server) handleSubscribe(id string, msg wamp.SubscribeMsg) {
+	log.Debug("Handling subscribe message")
 	t.subLock.Lock()
-	evt := msg.TopicURI
-	if _, ok := t.subscriptions[evt]; !ok {
-		t.subscriptions[evt] = make(map[string]bool)
+	topic := wamp.CheckCurie(t.prefixes[id], msg.TopicURI)
+	if _, ok := t.subscriptions[topic]; !ok {
+		t.subscriptions[topic] = make(map[string]bool)
 	}
-	t.subscriptions[evt][id] = true
+	t.subscriptions[topic][id] = true
 	t.subLock.Unlock()
 }
 
 func (t *Server) handleUnsubscribe(id string, msg wamp.UnsubscribeMsg) {
+	log.Debug("Handling unsubscribe message")
 	t.subLock.Lock()
-	if tmap, ok := t.subscriptions[msg.TopicURI]; ok {
+	topic := wamp.CheckCurie(t.prefixes[id], msg.TopicURI)
+	if tmap, ok := t.subscriptions[topic]; ok {
 		delete(tmap, id)
 	}
 	t.subLock.Unlock()
 }
 
 func (t *Server) handlePublish(id string, msg wamp.PublishMsg) {
-	tmap, ok := t.subscriptions[msg.TopicURI]
+	log.Debug("Handling publish message")
+	topic := wamp.CheckCurie(t.prefixes[id], msg.TopicURI)
+	tmap, ok := t.subscriptions[topic]
 	if !ok {
 		return
 	}
 
-	out, err := wamp.Event(msg.TopicURI, msg.Event)
+	out, err := wamp.Event(topic, msg.Event)
 	if err != nil {
 		log.Error("Error creating event message: %s", err)
 		return
@@ -110,6 +131,7 @@ func (t *Server) handlePublish(id string, msg wamp.PublishMsg) {
 		}
 	}
 
+	log.Debug("Sending event messages")
 	for _, tid := range sendTo {
 		// we're not locking anything, so we need
 		// to make sure the client didn't disconnecct in the
@@ -137,7 +159,7 @@ func (t *Server) HandleWebsocket(conn *websocket.Conn) {
 		log.Error("Error encoding welcome message")
 		return
 	}
-	log.Trace("Sending welcome message: %s", arr)
+	log.Debug("Sending welcome message: %s", arr)
 	err = websocket.Message.Send(conn, string(arr))
 	if err != nil {
 		log.Error("Error sending welcome message, aborting connection: %s", err)
@@ -205,7 +227,7 @@ func (t *Server) HandleWebsocket(conn *websocket.Conn) {
 			}
 			t.handlePublish(id, msg)
 		case wamp.TYPE_ID_WELCOME, wamp.TYPE_ID_CALLRESULT, wamp.TYPE_ID_CALLERROR, wamp.TYPE_ID_EVENT:
-			log.Error("Server -> client message received, ignored: %s", typ)
+			log.Error("Server -> client message received, ignored: %s", wamp.TypeString(typ))
 		default:
 			log.Error("Invalid message format, message dropped: %s", data)
 		}

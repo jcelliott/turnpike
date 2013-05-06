@@ -486,3 +486,9 @@ func TestParseType(t *testing.T) {
 	i = ParseType(data)
 	assert.Equal(t, -1, i)
 }
+
+func TestTypeString(t *testing.T) {
+	assert.Equal(t, "WELCOME", TypeString(0))
+	assert.Equal(t, "SUBSCRIBE", TypeString(5))
+	assert.Equal(t, "", TypeString(9))
+}

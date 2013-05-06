@@ -53,6 +53,14 @@ func ParseType(msg string) int {
 	return i
 }
 
+func TypeString(typ int) string {
+	types := []string{"WELCOME", "PREFIX", "CALL", "CALLRESULT", "CALLERROR", "SUBSCRIBE", "UNSUBSCRIBE", "PUBLISH", "EVENT"}
+	if typ >= 0 && typ < 9 {
+		return types[typ]
+	}
+	return ""
+}
+
 // WELCOME
 type WelcomeMsg struct {
 	SessionId       string
