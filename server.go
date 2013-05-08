@@ -34,7 +34,7 @@ func (lm listenerMap) Remove(id string) {
 }
 
 // this may be broken in v2 if multiple-return is implemented
-type RPCHandler func(string, ...interface{}) (interface{}, error)
+type RPCHandler func(string, string, ...interface{}) (interface{}, error)
 
 var serverBacklog = 10
 
@@ -76,7 +76,7 @@ func (t *Server) handleCall(id string, msg wamp.CallMsg) {
 
 	if f, ok := t.rpcHooks[msg.ProcURI]; ok && f != nil {
 		var res interface{}
-		res, err = f(msg.ProcURI, msg.CallArgs...)
+		res, err = f(id, msg.ProcURI, msg.CallArgs...)
 		if err != nil {
 			var errorURI, desc string
 			var details interface{}
