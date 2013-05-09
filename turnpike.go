@@ -5,6 +5,11 @@ import (
 	"code.google.com/p/go.net/websocket"
 )
 
+const (
+	TURNPIKE_VERSION      = "0.2.0"
+	TURNPIKE_SERVER_IDENT = "turnpike-" + TURNPIKE_VERSION
+)
+
 type Handler interface {
 	HandleWebsocket(*websocket.Conn)
 }

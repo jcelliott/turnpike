@@ -16,6 +16,7 @@ func (pm PrefixMap) RegisterPrefix(prefix, URI string) error {
 	return nil
 }
 
+// returns the full URI that the curie represents
 func (pm PrefixMap) ResolveCurie(curie string) (string, error) {
 	parts := strings.SplitN(curie, ":", 2)
 	// if there is no reference, return the URI for the prefix
@@ -32,6 +33,7 @@ func (pm PrefixMap) ResolveCurie(curie string) (string, error) {
 	return "", fmt.Errorf("Unable to resolve curie: %s", curie)
 }
 
+// convenience function that will resolve a curie and pass through a URI
 func CheckCurie(pm PrefixMap, curie string) string {
 	if pm == nil {
 		// no prefixes defined for this client, curie is a uri

@@ -23,6 +23,7 @@ type RPCError interface {
 }
 
 type listenerMap map[string]bool
+
 func (lm listenerMap) Add(id string) {
 	lm[id] = true
 }
@@ -64,8 +65,7 @@ func (t *Server) handlePrefix(id string, msg wamp.PrefixMsg) {
 	if _, ok := t.prefixes[id]; !ok {
 		t.prefixes[id] = make(wamp.PrefixMap)
 	}
-	err := t.prefixes[id].RegisterPrefix(msg.Prefix, msg.URI)
-	if err != nil {
+	if err := t.prefixes[id].RegisterPrefix(msg.Prefix, msg.URI); err != nil {
 		log.Error("Error registering prefix: %s", err)
 	}
 }
@@ -207,7 +207,7 @@ func (t *Server) HandleWebsocket(conn *websocket.Conn) {
 	}
 	id := tid.String()
 
-	arr, err := wamp.Welcome(id)
+	arr, err := wamp.Welcome(id, TURNPIKE_SERVER_IDENT)
 	if err != nil {
 		log.Error("Error encoding welcome message")
 		return
@@ -246,42 +246,42 @@ func (t *Server) HandleWebsocket(conn *websocket.Conn) {
 		data := []byte(rec)
 
 		switch typ := wamp.ParseType(rec); typ {
-		case wamp.TYPE_ID_PREFIX:
+		case wamp.PREFIX:
 			var msg wamp.PrefixMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
 				log.Error("Error unmarshalling prefix message: %s", err)
 			}
 			t.handlePrefix(id, msg)
-		case wamp.TYPE_ID_CALL:
+		case wamp.CALL:
 			var msg wamp.CallMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
 				log.Error("Error unmarshalling call message: %s", err)
 			}
 			t.handleCall(id, msg)
-		case wamp.TYPE_ID_SUBSCRIBE:
+		case wamp.SUBSCRIBE:
 			var msg wamp.SubscribeMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
 				log.Error("Error unmarshalling subscribe message: %s", err)
 			}
 			t.handleSubscribe(id, msg)
-		case wamp.TYPE_ID_UNSUBSCRIBE:
+		case wamp.UNSUBSCRIBE:
 			var msg wamp.UnsubscribeMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
 				log.Error("Error unmarshalling unsubscribe message: %s", err)
 			}
 			t.handleUnsubscribe(id, msg)
-		case wamp.TYPE_ID_PUBLISH:
+		case wamp.PUBLISH:
 			var msg wamp.PublishMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
 				log.Error("Error unmarshalling publish message: %s", err)
 			}
 			t.handlePublish(id, msg)
-		case wamp.TYPE_ID_WELCOME, wamp.TYPE_ID_CALLRESULT, wamp.TYPE_ID_CALLERROR, wamp.TYPE_ID_EVENT:
+		case wamp.WELCOME, wamp.CALLRESULT, wamp.CALLERROR, wamp.EVENT:
 			log.Error("Server -> client message received, ignored: %s", wamp.TypeString(typ))
 		default:
 			log.Error("Invalid message format, message dropped: %s", data)
