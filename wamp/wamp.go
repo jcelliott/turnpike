@@ -125,7 +125,7 @@ func (msg *PrefixMsg) UnmarshalJSON(jsonData []byte) error {
 // Prefix returns a json encoded WAMP 'PREFIX' message as a byte slice
 func Prefix(prefix, URI string) ([]byte, error) {
 	if _, err := url.ParseRequestURI(URI); err != nil {
-		return nil, &WAMPError{"invalid URI: %s" + URI}
+		return nil, &WAMPError{"invalid URI: " + URI}
 	}
 	return createWAMPMessage(PREFIX, prefix, URI)
 }
@@ -164,7 +164,7 @@ func (msg *CallMsg) UnmarshalJSON(jsonData []byte) error {
 // procedure to be called, followed by zero or more call arguments
 func Call(callID, procURI string, args ...interface{}) ([]byte, error) {
 	if _, err := url.ParseRequestURI(procURI); err != nil {
-		return nil, &WAMPError{"invalid URI: %s" + procURI}
+		return nil, &WAMPError{"invalid URI: " + procURI}
 	}
 	var data []interface{}
 	data = append(data, CALL, callID, procURI)
@@ -241,7 +241,7 @@ func (msg *CallErrorMsg) UnmarshalJSON(jsonData []byte) error {
 // error (for developers), errorDetails, if present, is a non-nil object
 func CallError(callID, errorURI, errorDesc string, errorDetails ...interface{}) ([]byte, error) {
 	if _, err := url.ParseRequestURI(errorURI); err != nil {
-		return nil, &WAMPError{"invalid URI: %s" + errorURI}
+		return nil, &WAMPError{"invalid URI: " + errorURI}
 	}
 	var data []interface{}
 	data = append(data, CALLERROR, callID, errorURI, errorDesc)
@@ -404,7 +404,7 @@ func Event(topicURI string, event interface{}) ([]byte, error) {
 // URI and then passes the request on to createWAMPMessage
 func createWAMPMessagePubSub(args ...interface{}) ([]byte, error) {
 	if _, err := url.ParseRequestURI(args[1].(string)); err != nil {
-		return nil, &WAMPError{"invalid URI: %s" + args[1].(string)}
+		return nil, &WAMPError{"invalid URI: " + args[1].(string)}
 	}
 	return createWAMPMessage(args...)
 }

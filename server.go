@@ -61,16 +61,18 @@ func NewServer() *Server {
 }
 
 func (t *Server) handlePrefix(id string, msg wamp.PrefixMsg) {
-	log.Debug("Handling prefix message")
+	log.Trace("Handling prefix message")
 	if _, ok := t.prefixes[id]; !ok {
 		t.prefixes[id] = make(wamp.PrefixMap)
 	}
 	if err := t.prefixes[id].RegisterPrefix(msg.Prefix, msg.URI); err != nil {
 		log.Error("Error registering prefix: %s", err)
 	}
+	log.Debug("Client %s registered prefix '%s' for URI: %s", id, msg.Prefix, msg.URI)
 }
 
 func (t *Server) handleCall(id string, msg wamp.CallMsg) {
+	log.Trace("Handling call message")
 	var out []byte
 	var err error
 
@@ -113,7 +115,7 @@ func (t *Server) handleCall(id string, msg wamp.CallMsg) {
 }
 
 func (t *Server) handleSubscribe(id string, msg wamp.SubscribeMsg) {
-	log.Debug("Handling subscribe message")
+	log.Trace("Handling subscribe message")
 	t.subLock.Lock()
 	topic := wamp.CheckCurie(t.prefixes[id], msg.TopicURI)
 	if _, ok := t.subscriptions[topic]; !ok {
@@ -121,20 +123,22 @@ func (t *Server) handleSubscribe(id string, msg wamp.SubscribeMsg) {
 	}
 	t.subscriptions[topic].Add(id)
 	t.subLock.Unlock()
+	log.Debug("Client %s subscribed to topic: %s", id, topic)
 }
 
 func (t *Server) handleUnsubscribe(id string, msg wamp.UnsubscribeMsg) {
-	log.Debug("Handling unsubscribe message")
+	log.Trace("Handling unsubscribe message")
 	t.subLock.Lock()
 	topic := wamp.CheckCurie(t.prefixes[id], msg.TopicURI)
 	if lm, ok := t.subscriptions[topic]; ok {
 		lm.Remove(id)
 	}
 	t.subLock.Unlock()
+	log.Debug("Client %s unsubscribed from topic: %s", id, topic)
 }
 
 func (t *Server) handlePublish(id string, msg wamp.PublishMsg) {
-	log.Debug("Handling publish message")
+	log.Trace("Handling publish message")
 	topic := wamp.CheckCurie(t.prefixes[id], msg.TopicURI)
 	lm, ok := t.subscriptions[topic]
 	if !ok {

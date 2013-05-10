@@ -23,9 +23,9 @@ type Client struct {
 	ws              *websocket.Conn
 	messages        chan string
 	prefixes        wamp.PrefixMap
-	sessionId       string
-	protocolVersion int
-	serverIdent     string
+	SessionId       string
+	ProtocolVersion int
+	ServerIdent     string
 }
 
 func NewClient() *Client {
@@ -123,12 +123,12 @@ func (c *Client) ReceiveWelcome() error {
 	if err != nil {
 		return fmt.Errorf("Error unmarshalling welcome message: %s", err)
 	}
-	c.sessionId = msg.SessionId
-	log.Debug("Session id: %s", c.sessionId)
-	c.protocolVersion = msg.ProtocolVersion
-	log.Debug("Protocol version: %d", c.protocolVersion)
-	c.serverIdent = msg.ServerIdent
-	log.Debug("Server ident: %s", c.serverIdent)
+	c.SessionId = msg.SessionId
+	log.Debug("Session id: %s", c.SessionId)
+	c.ProtocolVersion = msg.ProtocolVersion
+	log.Debug("Protocol version: %d", c.ProtocolVersion)
+	c.ServerIdent = msg.ServerIdent
+	log.Debug("Server ident: %s", c.ServerIdent)
 	return nil
 }
 

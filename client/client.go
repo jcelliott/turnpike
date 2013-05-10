@@ -4,16 +4,15 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
-	"time"
 	"turnpike"
-	// "turnpike/wamp"
+	"turnpike/wamp"
 )
 
 func main() {
 	c := turnpike.NewClient()
 	fmt.Print("Server address (default: localhost:8080)\n> ")
-	server := ""
 	read := bufio.NewReader(os.Stdin)
 	// if _, err := fmt.Scanln(&server); err != nil {
 	server, err := read.ReadString('\n')
@@ -29,14 +28,17 @@ func main() {
 		fmt.Println("Error connecting:", err)
 		return
 	}
-	fmt.Println("Connected to server at:", server)
-	fmt.Print("Enter WAMP message, parameters separated by spaces\n",
-		"PREFIX=1, CALL=2, SUBSCRIBE=5, UNSUBSCRIBE=6, PUBLISH=7\n")
+
+	fmt.Print(
+		"----------------------------------------------------------------------\n",
+		"Connected to server at: ", server, "\n",
+		"With session id: ", c.SessionId, "\n",
+		"Enter WAMP message, parameters separated by spaces\n",
+		"PREFIX=1, CALL=2, SUBSCRIBE=5, UNSUBSCRIBE=6, PUBLISH=7\n",
+		"----------------------------------------------------------------------\n")
 
 	for {
-		// msgType := -1
-		// args := []*string{}
-		fmt.Print("> ")
+		fmt.Print(c.ServerIdent, "> ")
 		// if _, err := fmt.Scanln(&msgType, &args); err != nil {
 		line, err := read.ReadString('\n')
 		if err != nil {
@@ -47,19 +49,44 @@ func main() {
 		if line == "" {
 			continue
 		}
-		fmt.Println(line)
+		// fmt.Println(line)
 
-		// switch msgType {
-		// case wamp.PREFIX:
+		// get the type
+		params := strings.SplitN(line, " ", 2)
+		line = params[1]
+		msgType, err := strconv.Atoi(params[0])
+		if err != nil {
+			fmt.Println("Error parsing message type:", params[0])
+			continue
+		}
 
-		// }
+		err = nil
+		switch msgType {
+		case wamp.PREFIX:
+			var prefix, URI string
+			fmt.Sscan(line, &prefix, &URI)
+			err = c.Prefix(prefix, URI)
+		case wamp.CALL:
+			args := strings.Split(line, " ")
+			err = c.Call(args[0], args[1], args[2:])
+		case wamp.SUBSCRIBE:
+			err = c.Subscribe(line)
+		case wamp.UNSUBSCRIBE:
+			err = c.Unsubscribe(line)
+		case wamp.PUBLISH:
+			args := strings.Split(line, " ")
+			if len(args) > 2 {
+				err = c.Publish(args[0], args[1], args[2:])
+			} else {
+				err = c.Publish(args[0], args[1])
+			}
+		default:
+			fmt.Println("Invalid message type:", msgType)
+			continue
+		}
 
+		if err != nil {
+			fmt.Println("Error sending message:", err)
+		}
 	}
-
-	time.Sleep(time.Second * 3)
-	c.Prefix("test", "http://example.com/test#")
-	time.Sleep(time.Second * 3)
-	c.Subscribe("test:topic")
-	c.Publish("test:topic", "something really cool happened!")
-	time.Sleep(time.Second * 3)
 }
