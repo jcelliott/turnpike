@@ -14,15 +14,14 @@ type testObj struct {
 
 func TestWelcome(t *testing.T) {
 	exp := `[0,"12345678",1,"turnpike-0.1.0"]`
-	msg, err := Welcome("12345678")
+	msg, err := Welcome("12345678", "turnpike-0.1.0")
 	if err != nil {
 		t.Errorf("error creating welcome message: %s", err)
 	}
 	assert.Equal(t, exp, string(msg))
 
-	ServerIdent = "a different server"
 	exp = `[0,"87654321",1,"a different server"]`
-	msg, err = Welcome("87654321")
+	msg, err = Welcome("87654321", "a different server")
 	if err != nil {
 		t.Errorf("error creating welcome message: %s", err)
 	}
@@ -480,7 +479,7 @@ func TestParseEvent(t *testing.T) {
 func TestParseType(t *testing.T) {
 	data := `[8,"http://example.com/api/test",null]`
 	i := ParseType(data)
-	assert.Equal(t, TYPE_ID_EVENT, i)
+	assert.Equal(t, EVENT, i)
 
 	data = `[true,"blah"]`
 	i = ParseType(data)

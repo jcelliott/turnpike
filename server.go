@@ -71,7 +71,7 @@ func (t *Server) handlePrefix(id string, msg wamp.PrefixMsg) {
 }
 
 func (t *Server) handleCall(id string, msg wamp.CallMsg) {
-	var out []byte
+	var out string
 	var err error
 
 	if f, ok := t.rpcHooks[msg.ProcURI]; ok && f != nil {
@@ -108,7 +108,7 @@ func (t *Server) handleCall(id string, msg wamp.CallMsg) {
 		return
 	}
 	if client, ok := t.clients[id]; ok {
-		client <- string(out)
+		client <- out
 	}
 }
 
