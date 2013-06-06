@@ -1,4 +1,4 @@
-package wamp
+package turnpike
 
 import (
 	"encoding/json"
@@ -14,14 +14,14 @@ type testObj struct {
 
 func TestWelcome(t *testing.T) {
 	exp := `[0,"12345678",1,"turnpike-0.1.0"]`
-	msg, err := Welcome("12345678", "turnpike-0.1.0")
+	msg, err := CreateWelcome("12345678", "turnpike-0.1.0")
 	if err != nil {
 		t.Errorf("error creating welcome message: %s", err)
 	}
 	assert.Equal(t, exp, string(msg))
 
 	exp = `[0,"87654321",1,"a different server"]`
-	msg, err = Welcome("87654321", "a different server")
+	msg, err = CreateWelcome("87654321", "a different server")
 	if err != nil {
 		t.Errorf("error creating welcome message: %s", err)
 	}
@@ -43,14 +43,14 @@ func TestParseWelcome(t *testing.T) {
 
 func TestPrefix(t *testing.T) {
 	exp := `[1,"prefix","http://www.example.com/api/start"]`
-	msg, err := Prefix("prefix", "http://www.example.com/api/start")
+	msg, err := CreatePrefix("prefix", "http://www.example.com/api/start")
 	if err != nil {
 		t.Errorf("error creating prefix message: %s", err)
 	}
 	assert.Equal(t, exp, string(msg))
 
 	// test bad uri
-	_, err = Prefix("prefix", "httpppppppp")
+	_, err = CreatePrefix("prefix", "httpppppppp")
 	assert.Error(t, err)
 }
 
@@ -89,12 +89,12 @@ func TestCall(t *testing.T) {
 	compareCall(t, exp, "1234", "http://example.com/rpc", obj, "astring")
 
 	// test bad uri
-	_, err := Call("abcd", "httpnopenopenope")
+	_, err := CreateCall("abcd", "httpnopenopenope")
 	assert.Error(t, err)
 }
 
 func compareCall(t *testing.T, expected, callID, procURI string, args ...interface{}) {
-	msg, err := Call(callID, procURI, args...)
+	msg, err := CreateCall(callID, procURI, args...)
 	if err != nil {
 		t.Errorf("error creating call message: %s", err)
 	}
@@ -154,7 +154,7 @@ func TestCallResult(t *testing.T) {
 }
 
 func compareCallResult(t *testing.T, expected, callID string, result interface{}) {
-	msg, err := CallResult(callID, result)
+	msg, err := CreateCallResult(callID, result)
 	if err != nil {
 		t.Errorf("error creating callresult message: %s", err)
 	}
@@ -210,7 +210,7 @@ func TestCallError(t *testing.T) {
 }
 
 func compareCallError(t *testing.T, expected, callID, errorURI, errorDesc string, errorDetails ...interface{}) {
-	msg, err := CallError(callID, errorURI, errorDesc, errorDetails...)
+	msg, err := CreateCallError(callID, errorURI, errorDesc, errorDetails...)
 	if err != nil {
 		t.Errorf("error creating callerror message: %s", err)
 	}
@@ -258,14 +258,14 @@ func TestParseCallError(t *testing.T) {
 
 func TestSubscribe(t *testing.T) {
 	exp := `[5,"http://example.com/simple"]`
-	msg, err := Subscribe("http://example.com/simple")
+	msg, err := CreateSubscribe("http://example.com/simple")
 	if err != nil {
 		t.Errorf("error creating subscribe message: %s", err)
 	}
 	assert.Equal(t, exp, string(msg))
 
 	// test bad uri
-	_, err = Subscribe("qwerty")
+	_, err = CreateSubscribe("qwerty")
 	assert.Error(t, err)
 }
 
@@ -282,14 +282,14 @@ func TestParseSubscribe(t *testing.T) {
 
 func TestUnsubscribe(t *testing.T) {
 	exp := `[6,"http://example.com/something"]`
-	msg, err := Unsubscribe("http://example.com/something")
+	msg, err := CreateUnsubscribe("http://example.com/something")
 	if err != nil {
 		t.Errorf("error creating unsubscribe message: %s", err)
 	}
 	assert.Equal(t, exp, string(msg))
 
 	// test bad uri
-	_, err = Unsubscribe("qwerty")
+	_, err = CreateUnsubscribe("qwerty")
 	assert.Error(t, err)
 }
 
@@ -331,12 +331,12 @@ func TestPublish(t *testing.T) {
 	comparePublish(t, exp, "http://example.com/api/testing:thing", "this is an event", []string{}, []string{"sam", "fred"})
 
 	// test bad uri
-	_, err := Publish("asdfasdf", "bad uri")
+	_, err := CreatePublish("asdfasdf", "bad uri")
 	assert.Error(t, err)
 }
 
 func comparePublish(t *testing.T, expected, topic string, event interface{}, args ...interface{}) {
-	msg, err := Publish(topic, event, args...)
+	msg, err := CreatePublish(topic, event, args...)
 	if err != nil {
 		t.Errorf("error creating message: %s", err)
 	}
@@ -429,12 +429,12 @@ func TestEvent(t *testing.T) {
 	compareEvent(t, exp, "http://www.example.com/doc#thing", obj)
 
 	// test bad uri
-	_, err := Event("asdfasdf", "bad uri")
+	_, err := CreateEvent("asdfasdf", "bad uri")
 	assert.Error(t, err)
 }
 
 func compareEvent(t *testing.T, expected, topic string, event interface{}) {
-	msg, err := Event(topic, event)
+	msg, err := CreateEvent(topic, event)
 	if err != nil {
 		t.Errorf("error creating message: %s", err)
 	}

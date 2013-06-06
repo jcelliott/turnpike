@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"turnpike"
-	"turnpike/wamp"
 )
 
 func main() {
@@ -62,18 +61,18 @@ func main() {
 
 		err = nil
 		switch msgType {
-		case wamp.PREFIX:
+		case turnpike.PREFIX:
 			var prefix, URI string
 			fmt.Sscan(line, &prefix, &URI)
 			err = c.Prefix(prefix, URI)
-		case wamp.CALL:
+		case turnpike.CALL:
 			args := strings.Split(line, " ")
 			err = c.Call(args[0], args[1], args[2:])
-		case wamp.SUBSCRIBE:
+		case turnpike.SUBSCRIBE:
 			err = c.Subscribe(line)
-		case wamp.UNSUBSCRIBE:
+		case turnpike.UNSUBSCRIBE:
 			err = c.Unsubscribe(line)
-		case wamp.PUBLISH:
+		case turnpike.PUBLISH:
 			args := strings.Split(line, " ")
 			if len(args) > 2 {
 				err = c.Publish(args[0], args[1], args[2:])

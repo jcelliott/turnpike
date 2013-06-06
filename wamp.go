@@ -1,5 +1,4 @@
-// Package wamp implements the Websocket Application Messaging Protocol
-package wamp
+package turnpike
 
 import (
 	"encoding/json"
@@ -93,7 +92,7 @@ func (msg *WelcomeMsg) UnmarshalJSON(jsonData []byte) error {
 // Welcome returns a json encoded WAMP 'WELCOME' message as a byte slice
 // sessionId is a randomly generated string provided by the server, serverIdent
 // is a string that identifies the WAMP server
-func Welcome(sessionId, serverIdent string) (string, error) {
+func CreateWelcome(sessionId, serverIdent string) (string, error) {
 	return createWAMPMessage(WELCOME, sessionId, PROTOCOL_VERSION, serverIdent)
 }
 
@@ -123,7 +122,7 @@ func (msg *PrefixMsg) UnmarshalJSON(jsonData []byte) error {
 }
 
 // Prefix returns a json encoded WAMP 'PREFIX' message as a byte slice
-func Prefix(prefix, URI string) (string, error) {
+func CreatePrefix(prefix, URI string) (string, error) {
 	if _, err := url.ParseRequestURI(URI); err != nil {
 		return "", &WAMPError{"invalid URI: " + URI}
 	}
@@ -162,7 +161,7 @@ func (msg *CallMsg) UnmarshalJSON(jsonData []byte) error {
 // Call returns a json encoded WAMP 'CALL' message as a byte slice
 // callID must be a randomly generated string, procURI is the URI of the remote
 // procedure to be called, followed by zero or more call arguments
-func Call(callID, procURI string, args ...interface{}) (string, error) {
+func CreateCall(callID, procURI string, args ...interface{}) (string, error) {
 	if _, err := url.ParseRequestURI(procURI); err != nil {
 		return "", &WAMPError{"invalid URI: " + procURI}
 	}
@@ -199,7 +198,7 @@ func (msg *CallResultMsg) UnmarshalJSON(jsonData []byte) error {
 
 // CallResult returns a json encoded WAMP 'CALLRESULT' message as a byte slice
 // callID is the randomly generated string provided by the client
-func CallResult(callID string, result interface{}) (string, error) {
+func CreateCallResult(callID string, result interface{}) (string, error) {
 	return createWAMPMessage(CALLRESULT, callID, result)
 }
 
@@ -240,7 +239,7 @@ func (msg *CallErrorMsg) UnmarshalJSON(jsonData []byte) error {
 // callID is the randomly generated string provided by the client, errorURI is
 // a URI identifying the error, errorDesc is a human-readable description of the
 // error (for developers), errorDetails, if present, is a non-nil object
-func CallError(callID, errorURI, errorDesc string, errorDetails ...interface{}) (string, error) {
+func CreateCallError(callID, errorURI, errorDesc string, errorDetails ...interface{}) (string, error) {
 	if _, err := url.ParseRequestURI(errorURI); err != nil {
 		return "", &WAMPError{"invalid URI: " + errorURI}
 	}
@@ -274,7 +273,7 @@ func (msg *SubscribeMsg) UnmarshalJSON(jsonData []byte) error {
 
 // Subscribe returns a json encoded WAMP 'SUBSCRIBE' message as a byte slice
 // topicURI is the topic that the client wants to subscribe to
-func Subscribe(topicURI string) (string, error) {
+func CreateSubscribe(topicURI string) (string, error) {
 	return createWAMPMessagePubSub(SUBSCRIBE, topicURI)
 }
 
@@ -301,7 +300,7 @@ func (msg *UnsubscribeMsg) UnmarshalJSON(jsonData []byte) error {
 
 // Unsubscribe returns a json encoded WAMP 'UNSUBSCRIBE' message as a byte slice
 // topicURI is the topic that the client wants to unsubscribe from
-func Unsubscribe(topicURI string) (string, error) {
+func CreateUnsubscribe(topicURI string) (string, error) {
 	return createWAMPMessagePubSub(UNSUBSCRIBE, topicURI)
 }
 
@@ -365,7 +364,7 @@ func (msg *PublishMsg) UnmarshalJSON(jsonData []byte) error {
 // [ topicURI, event, exclude ]
 // [ topicURI, event, exclude, eligible ]
 // event can be nil, a simple json type, or a complex json type
-func Publish(topicURI string, event interface{}, opts ...interface{}) (string, error) {
+func CreatePublish(topicURI string, event interface{}, opts ...interface{}) (string, error) {
 	var data []interface{}
 	data = append(data, PUBLISH, topicURI, event)
 	data = append(data, opts...)
@@ -398,7 +397,7 @@ func (msg *EventMsg) UnmarshalJSON(jsonData []byte) error {
 
 // Event returns a json encoded WAMP 'EVENT' message as a byte slice
 // event can be nil, a simple json type, or a complex json type
-func Event(topicURI string, event interface{}) (string, error) {
+func CreateEvent(topicURI string, event interface{}) (string, error) {
 	return createWAMPMessagePubSub(EVENT, topicURI, event)
 }
 

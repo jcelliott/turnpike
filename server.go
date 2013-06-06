@@ -8,7 +8,6 @@ import (
 	"github.com/nu7hatch/gouuid"
 	"io"
 	"sync"
-	"turnpike/wamp"
 )
 
 func init() {
@@ -46,7 +45,7 @@ type Server struct {
 	//               topicID  clients
 	subscriptions map[string]listenerMap
 	//           client    prefixes
-	prefixes map[string]wamp.PrefixMap
+	prefixes map[string]PrefixMap
 	rpcHooks map[string]RPCHandler
 	subLock  *sync.Mutex
 }
@@ -55,15 +54,15 @@ func NewServer() *Server {
 	return &Server{
 		clients:       make(map[string]chan<- string),
 		subscriptions: make(map[string]listenerMap),
-		prefixes:      make(map[string]wamp.PrefixMap),
+		prefixes:      make(map[string]PrefixMap),
 		rpcHooks:      make(map[string]RPCHandler),
 		subLock:       new(sync.Mutex)}
 }
 
-func (t *Server) handlePrefix(id string, msg wamp.PrefixMsg) {
+func (t *Server) handlePrefix(id string, msg PrefixMsg) {
 	log.Trace("Handling prefix message")
 	if _, ok := t.prefixes[id]; !ok {
-		t.prefixes[id] = make(wamp.PrefixMap)
+		t.prefixes[id] = make(PrefixMap)
 	}
 	if err := t.prefixes[id].RegisterPrefix(msg.Prefix, msg.URI); err != nil {
 		log.Error("Error registering prefix: %s", err)
@@ -71,7 +70,7 @@ func (t *Server) handlePrefix(id string, msg wamp.PrefixMsg) {
 	log.Debug("Client %s registered prefix '%s' for URI: %s", id, msg.Prefix, msg.URI)
 }
 
-func (t *Server) handleCall(id string, msg wamp.CallMsg) {
+func (t *Server) handleCall(id string, msg CallMsg) {
 	log.Trace("Handling call message")
 	var out string
 	var err error
@@ -92,16 +91,16 @@ func (t *Server) handleCall(id string, msg wamp.CallMsg) {
 			}
 
 			if details != nil {
-				out, err = wamp.CallError(msg.CallID, errorURI, desc, details)
+				out, err = CreateCallError(msg.CallID, errorURI, desc, details)
 			} else {
-				out, err = wamp.CallError(msg.CallID, errorURI, desc)
+				out, err = CreateCallError(msg.CallID, errorURI, desc)
 			}
 		} else {
-			out, err = wamp.CallResult(msg.CallID, res)
+			out, err = CreateCallResult(msg.CallID, res)
 		}
 	} else {
 		log.Warn("RPC call not registered: %s", msg.ProcURI)
-		out, err = wamp.CallError(msg.CallID, "error:notimplemented", "RPC call '%s' not implemented", msg.ProcURI)
+		out, err = CreateCallError(msg.CallID, "error:notimplemented", "RPC call '%s' not implemented", msg.ProcURI)
 	}
 
 	if err != nil {
@@ -114,10 +113,10 @@ func (t *Server) handleCall(id string, msg wamp.CallMsg) {
 	}
 }
 
-func (t *Server) handleSubscribe(id string, msg wamp.SubscribeMsg) {
+func (t *Server) handleSubscribe(id string, msg SubscribeMsg) {
 	log.Trace("Handling subscribe message")
 	t.subLock.Lock()
-	topic := wamp.CheckCurie(t.prefixes[id], msg.TopicURI)
+	topic := CheckCurie(t.prefixes[id], msg.TopicURI)
 	if _, ok := t.subscriptions[topic]; !ok {
 		t.subscriptions[topic] = make(map[string]bool)
 	}
@@ -126,10 +125,10 @@ func (t *Server) handleSubscribe(id string, msg wamp.SubscribeMsg) {
 	log.Debug("Client %s subscribed to topic: %s", id, topic)
 }
 
-func (t *Server) handleUnsubscribe(id string, msg wamp.UnsubscribeMsg) {
+func (t *Server) handleUnsubscribe(id string, msg UnsubscribeMsg) {
 	log.Trace("Handling unsubscribe message")
 	t.subLock.Lock()
-	topic := wamp.CheckCurie(t.prefixes[id], msg.TopicURI)
+	topic := CheckCurie(t.prefixes[id], msg.TopicURI)
 	if lm, ok := t.subscriptions[topic]; ok {
 		lm.Remove(id)
 	}
@@ -137,15 +136,15 @@ func (t *Server) handleUnsubscribe(id string, msg wamp.UnsubscribeMsg) {
 	log.Debug("Client %s unsubscribed from topic: %s", id, topic)
 }
 
-func (t *Server) handlePublish(id string, msg wamp.PublishMsg) {
+func (t *Server) handlePublish(id string, msg PublishMsg) {
 	log.Trace("Handling publish message")
-	topic := wamp.CheckCurie(t.prefixes[id], msg.TopicURI)
+	topic := CheckCurie(t.prefixes[id], msg.TopicURI)
 	lm, ok := t.subscriptions[topic]
 	if !ok {
 		return
 	}
 
-	out, err := wamp.Event(topic, msg.Event)
+	out, err := CreateEvent(topic, msg.Event)
 	if err != nil {
 		log.Error("Error creating event message: %s", err)
 		return
@@ -211,7 +210,7 @@ func (t *Server) HandleWebsocket(conn *websocket.Conn) {
 	}
 	id := tid.String()
 
-	arr, err := wamp.Welcome(id, TURNPIKE_SERVER_IDENT)
+	arr, err := CreateWelcome(id, TURNPIKE_SERVER_IDENT)
 	if err != nil {
 		log.Error("Error encoding welcome message")
 		return
@@ -249,44 +248,44 @@ func (t *Server) HandleWebsocket(conn *websocket.Conn) {
 
 		data := []byte(rec)
 
-		switch typ := wamp.ParseType(rec); typ {
-		case wamp.PREFIX:
-			var msg wamp.PrefixMsg
+		switch typ := ParseType(rec); typ {
+		case PREFIX:
+			var msg PrefixMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
 				log.Error("Error unmarshalling prefix message: %s", err)
 			}
 			t.handlePrefix(id, msg)
-		case wamp.CALL:
-			var msg wamp.CallMsg
+		case CALL:
+			var msg CallMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
 				log.Error("Error unmarshalling call message: %s", err)
 			}
 			t.handleCall(id, msg)
-		case wamp.SUBSCRIBE:
-			var msg wamp.SubscribeMsg
+		case SUBSCRIBE:
+			var msg SubscribeMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
 				log.Error("Error unmarshalling subscribe message: %s", err)
 			}
 			t.handleSubscribe(id, msg)
-		case wamp.UNSUBSCRIBE:
-			var msg wamp.UnsubscribeMsg
+		case UNSUBSCRIBE:
+			var msg UnsubscribeMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
 				log.Error("Error unmarshalling unsubscribe message: %s", err)
 			}
 			t.handleUnsubscribe(id, msg)
-		case wamp.PUBLISH:
-			var msg wamp.PublishMsg
+		case PUBLISH:
+			var msg PublishMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
 				log.Error("Error unmarshalling publish message: %s", err)
 			}
 			t.handlePublish(id, msg)
-		case wamp.WELCOME, wamp.CALLRESULT, wamp.CALLERROR, wamp.EVENT:
-			log.Error("Server -> client message received, ignored: %s", wamp.TypeString(typ))
+		case WELCOME, CALLRESULT, CALLERROR, EVENT:
+			log.Error("Server -> client message received, ignored: %s", TypeString(typ))
 		default:
 			log.Error("Invalid message format, message dropped: %s", data)
 		}

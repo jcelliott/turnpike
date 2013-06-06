@@ -3,8 +3,7 @@ turnpike
 
 Go implementation of [WAMP](http://www.wamp.ws/) - The Websocket Application Messaging Protocol
 
-turnpike/wamp is the module that implements all the details of the protocol and may be used on its
-own. Turnpike itself provides a WAMP server and client.
+Turnpike provides a WAMP server and client.
 
 Examples
 ========
