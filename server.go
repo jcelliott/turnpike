@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	log.Level(log.TRACE)
+	log.Level(log.INFO)
 }
 
 type RPCError interface {
@@ -209,6 +209,7 @@ func (t *Server) HandleWebsocket(conn *websocket.Conn) {
 		return
 	}
 	id := tid.String()
+	log.Info("Client connected: %s", id)
 
 	arr, err := CreateWelcome(id, TURNPIKE_SERVER_IDENT)
 	if err != nil {
@@ -303,4 +304,11 @@ func (t *Server) RegisterRPC(uri string, f RPCHandler) {
 
 func (t *Server) UnregisterRPC(uri string) {
 	delete(t.rpcHooks, uri)
+}
+
+func (t *Server) SendEvent(topic string, event interface{}) {
+	t.handlePublish(topic, PublishMsg{
+		TopicURI: topic,
+		Event:    event,
+	})
 }
