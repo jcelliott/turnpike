@@ -3,6 +3,11 @@ package turnpike
 
 import (
 	"code.google.com/p/go.net/websocket"
+	"github.com/jcelliott/lumber"
+)
+
+var (
+	log lumber.Logger = lumber.NewConsoleLogger(lumber.INFO)
 )
 
 const (
@@ -19,4 +24,9 @@ func HandleWebsocket(t Handler) func(*websocket.Conn) {
 	return func(conn *websocket.Conn) {
 		t.HandleWebsocket(conn)
 	}
+}
+
+// Set the logger to an externally provided one
+func SetLogger(newLog lumber.Logger) {
+	log = newLog
 }

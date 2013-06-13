@@ -4,15 +4,14 @@ package turnpike
 import (
 	"code.google.com/p/go.net/websocket"
 	"encoding/json"
-	log "github.com/jcelliott/lumber"
 	"github.com/nu7hatch/gouuid"
 	"io"
 	"sync"
 )
 
-func init() {
-	log.Level(log.INFO)
-}
+var (
+	serverBacklog = 10
+)
 
 type RPCError interface {
 	error
@@ -35,8 +34,6 @@ func (lm listenerMap) Remove(id string) {
 
 // this may be broken in v2 if multiple-return is implemented
 type RPCHandler func(string, string, ...interface{}) (interface{}, error)
-
-var serverBacklog = 10
 
 type Server struct {
 	clients map[string]chan<- string

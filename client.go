@@ -4,13 +4,8 @@ import (
 	"code.google.com/p/go.net/websocket"
 	"encoding/json"
 	"fmt"
-	log "github.com/jcelliott/lumber"
 	"io"
 )
-
-func init() {
-	log.Level(log.TRACE)
-}
 
 const (
 	WAMP_SUBPROTOCOL_ID = "wamp"
@@ -94,17 +89,17 @@ func (c *Client) PublishExcludeMe(topicURI string, event interface{}) error {
 
 func (c *Client) handleCallResult(msg CallResultMsg) {
 	log.Trace("Handling call result message")
-
+	// TODO:
 }
 
 func (c *Client) handleCallError(msg CallErrorMsg) {
 	log.Trace("Handling call error message")
-
+	// TODO:
 }
 
 func (c *Client) handleEvent(msg EventMsg) {
 	log.Trace("Handling event message")
-
+	// TODO:
 }
 
 func (c *Client) ReceiveWelcome() error {
