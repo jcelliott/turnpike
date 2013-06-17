@@ -146,6 +146,7 @@ func (c *Client) Listen() {
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
 				log.Error("Error unmarshalling call result message: %s", err)
+				continue
 			}
 			c.handleCallResult(msg)
 		case CALLERROR:
@@ -153,6 +154,7 @@ func (c *Client) Listen() {
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
 				log.Error("Error unmarshalling call error message: %s", err)
+				continue
 			}
 			c.handleCallError(msg)
 		case EVENT:
@@ -160,6 +162,7 @@ func (c *Client) Listen() {
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
 				log.Error("Error unmarshalling event message: %s", err)
+				continue
 			}
 			c.handleEvent(msg)
 		case PREFIX, CALL, SUBSCRIBE, UNSUBSCRIBE, PUBLISH:
