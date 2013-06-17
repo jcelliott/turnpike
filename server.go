@@ -225,7 +225,7 @@ func (t *Server) HandleWebsocket(conn *websocket.Conn) {
 	go func() {
 		for msg := range c {
 			log.Trace("turnpike: sending message: %s", msg)
-			err := websocket.Message.Send(conn, string(msg))
+			err := websocket.Message.Send(conn, msg)
 			if err != nil {
 				log.Error("turnpike: error sending message: %s", err)
 			}
