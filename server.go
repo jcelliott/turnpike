@@ -6,11 +6,18 @@ import (
 	"encoding/json"
 	"github.com/nu7hatch/gouuid"
 	"io"
+	"net"
 	"sync"
+	"time"
 )
 
 var (
-	serverBacklog = 10
+	serverBacklog = 20
+)
+
+const (
+	CLIENT_CONN_TIMEOUT = 6
+	CLIENT_MAX_FAILURES = 3
 )
 
 type RPCError interface {
@@ -36,7 +43,7 @@ func (lm listenerMap) Remove(id string) {
 type RPCHandler func(string, string, ...interface{}) (interface{}, error)
 
 type Server struct {
-	clients map[string]chan<- string
+	clients map[string]chan string
 	// this is a map because it cheaply prevents a client from subscribing multiple times
 	// the nice side-effect here is it's easy to unsubscribe
 	//               topicID  clients
@@ -49,7 +56,7 @@ type Server struct {
 
 func NewServer() *Server {
 	return &Server{
-		clients:       make(map[string]chan<- string),
+		clients:       make(map[string]chan string),
 		subscriptions: make(map[string]listenerMap),
 		prefixes:      make(map[string]PrefixMap),
 		rpcHooks:      make(map[string]RPCHandler),
@@ -189,6 +196,9 @@ func (t *Server) handlePublish(id string, msg PublishMsg) {
 		// to make sure the client didn't disconnecct in the
 		// last few nanoseconds...
 		if client, ok := t.clients[tid]; ok {
+			if len(client) == cap(client) {
+				<-client
+			}
 			client <- string(out)
 		}
 	}
@@ -222,14 +232,27 @@ func (t *Server) HandleWebsocket(conn *websocket.Conn) {
 	c := make(chan string, serverBacklog)
 	t.clients[id] = c
 
+	failures := 0
 	go func() {
 		for msg := range c {
 			log.Trace("turnpike: sending message: %s", msg)
+			conn.SetWriteDeadline(time.Now().Add(CLIENT_CONN_TIMEOUT * time.Second))
 			err := websocket.Message.Send(conn, msg)
 			if err != nil {
-				log.Error("turnpike: error sending message: %s", err)
+				if nErr, ok := err.(net.Error); ok && (nErr.Timeout() || nErr.Temporary()) {
+					log.Warn("Network error: %s", nErr)
+					failures++
+					if failures > CLIENT_MAX_FAILURES {
+						break
+					}
+				} else {
+					log.Error("turnpike: error sending message: %s", err)
+					break
+				}
 			}
 		}
+		log.Info("Client %s disconnected", id)
+		conn.Close()
 	}()
 
 	for {
