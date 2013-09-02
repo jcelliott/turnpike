@@ -7,6 +7,7 @@ import (
 	"github.com/nu7hatch/gouuid"
 	"io"
 	"net"
+	"net/http"
 	"sync"
 	"time"
 )
@@ -52,15 +53,32 @@ type Server struct {
 	prefixes map[string]PrefixMap
 	rpcHooks map[string]RPCHandler
 	subLock  *sync.Mutex
+	websocket.Server
+}
+
+func checkWAMPHandshake(config *websocket.Config, req *http.Request) error {
+	for _, protocol := range config.Protocol {
+		if protocol == "wamp" {
+			config.Protocol = []string{protocol}
+			return nil
+		}
+	}
+	return websocket.ErrBadWebSocketProtocol
 }
 
 func NewServer() *Server {
-	return &Server{
+	s := &Server{
 		clients:       make(map[string]chan string),
 		subscriptions: make(map[string]listenerMap),
 		prefixes:      make(map[string]PrefixMap),
 		rpcHooks:      make(map[string]RPCHandler),
-		subLock:       new(sync.Mutex)}
+		subLock:       new(sync.Mutex),
+	}
+	s.Server = websocket.Server{
+		Handshake: checkWAMPHandshake,
+		Handler:   websocket.Handler(s.HandleWebsocket),
+	}
+	return s
 }
 
 func (t *Server) handlePrefix(id string, msg PrefixMsg) {
