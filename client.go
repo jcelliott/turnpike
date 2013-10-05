@@ -14,12 +14,13 @@ const (
 var clientBacklog = 10
 
 type Client struct {
-	ws              *websocket.Conn
-	messages        chan string
-	prefixes        PrefixMap
-	SessionId       string
-	ProtocolVersion int
-	ServerIdent     string
+	ws                  *websocket.Conn
+	messages            chan string
+	prefixes            PrefixMap
+	SessionId           string
+	ProtocolVersion     int
+	ServerIdent         string
+	sessionOpenCallback func(string)
 }
 
 func NewClient() *Client {
@@ -123,6 +124,11 @@ func (c *Client) ReceiveWelcome() error {
 	log.Debug("Protocol version: %d", c.ProtocolVersion)
 	c.ServerIdent = msg.ServerIdent
 	log.Debug("Server ident: %s", c.ServerIdent)
+
+	if c.sessionOpenCallback != nil {
+		c.sessionOpenCallback(c.SessionId)
+	}
+
 	return nil
 }
 
@@ -201,4 +207,10 @@ func (c *Client) Connect(server, origin string) error {
 	go c.Send()
 
 	return nil
+}
+
+// SetSessionOpenCallback adds a callback function that is run when a new session begins.
+// The callback function must accept a string argument that is the session ID.
+func (c *Client) SetSessionOpenCallback(f func(string)) {
+	c.sessionOpenCallback = f
 }

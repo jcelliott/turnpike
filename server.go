@@ -50,9 +50,10 @@ type Server struct {
 	//               topicID  clients
 	subscriptions map[string]listenerMap
 	//           client    prefixes
-	prefixes map[string]PrefixMap
-	rpcHooks map[string]RPCHandler
-	subLock  *sync.Mutex
+	prefixes            map[string]PrefixMap
+	rpcHooks            map[string]RPCHandler
+	sessionOpenCallback func(string)
+	subLock             *sync.Mutex
 	websocket.Server
 }
 
@@ -250,6 +251,10 @@ func (t *Server) HandleWebsocket(conn *websocket.Conn) {
 	c := make(chan string, serverBacklog)
 	t.clients[id] = c
 
+	if t.sessionOpenCallback != nil {
+		t.sessionOpenCallback(id)
+	}
+
 	failures := 0
 	go func() {
 		for msg := range c {
@@ -336,6 +341,12 @@ func (t *Server) HandleWebsocket(conn *websocket.Conn) {
 
 	delete(t.clients, id)
 	close(c)
+}
+
+// SetSessionOpenCallback adds a callback function that is run when a new session begins.
+// The callback function must accept a string argument that is the session ID.
+func (t *Server) SetSessionOpenCallback(f func(string)) {
+	t.sessionOpenCallback = f
 }
 
 func (t *Server) RegisterRPC(uri string, f RPCHandler) {
