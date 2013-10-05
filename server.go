@@ -1,4 +1,3 @@
-// Package turnpike provides a Websocket Application Messaging Protocol (WAMP) server and client
 package turnpike
 
 import (
@@ -21,6 +20,8 @@ const (
 	CLIENT_MAX_FAILURES = 3
 )
 
+// RPCError represents a call error and is the recommended way to return an
+// error from a RPC handler.
 type RPCError interface {
 	error
 	URI() string
@@ -40,9 +41,14 @@ func (lm listenerMap) Remove(id string) {
 	delete(lm, id)
 }
 
-// this may be broken in v2 if multiple-return is implemented
+// RPCHandler is an interface for that handler to RPC calls should implement.
+// The first parameter is the call ID, the second is the proc URI. Last comes
+// all optional arguments to the RPC call. The return can be of any type that
+// can be marshaled to JSON, or a error (preferably RPCError but any error works.)
+// NOTE: this may be broken in v2 if multiple-return is implemented
 type RPCHandler func(string, string, ...interface{}) (interface{}, error)
 
+// Server represents a WAMP server that handles RPC and pub/sub.
 type Server struct {
 	clients map[string]chan string
 	// this is a map because it cheaply prevents a client from subscribing multiple times
@@ -66,6 +72,7 @@ func checkWAMPHandshake(config *websocket.Config, req *http.Request) error {
 	return websocket.ErrBadWebSocketProtocol
 }
 
+// NewServer creates a new WAMP server.
 func NewServer() *Server {
 	s := &Server{
 		clients:       make(map[string]chan string),
@@ -222,6 +229,7 @@ func (t *Server) handlePublish(id string, msg PublishMsg) {
 	}
 }
 
+// HandleWebsocket implements the go.net/websocket.Handler interface.
 func (t *Server) HandleWebsocket(conn *websocket.Conn) {
 	defer conn.Close()
 
@@ -338,16 +346,19 @@ func (t *Server) HandleWebsocket(conn *websocket.Conn) {
 	close(c)
 }
 
+// RegisterRPC adds a handler for the RPC named uri.
 func (t *Server) RegisterRPC(uri string, f RPCHandler) {
 	if f != nil {
 		t.rpcHooks[uri] = f
 	}
 }
 
+// UnregisterRPC removes a handler for the RPC named uri.
 func (t *Server) UnregisterRPC(uri string) {
 	delete(t.rpcHooks, uri)
 }
 
+// SendEvent sends an event with topic directly (not via Client.Publish())
 func (t *Server) SendEvent(topic string, event interface{}) {
 	t.handlePublish(topic, PublishMsg{
 		TopicURI: topic,
