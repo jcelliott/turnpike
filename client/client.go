@@ -67,7 +67,7 @@ func main() {
 			err = c.Prefix(prefix, URI)
 		case turnpike.CALL:
 			args := strings.Split(line, " ")
-			err = c.Call(args[0], args[1], args[2:])
+			err = c.Call(args[0], args[1:])
 		case turnpike.SUBSCRIBE:
 			err = c.Subscribe(line)
 		case turnpike.UNSUBSCRIBE:
