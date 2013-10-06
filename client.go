@@ -26,7 +26,16 @@ type Client struct {
 	ws                  *websocket.Conn
 	messages            chan string
 	prefixes            prefixMap
+	calls               map[string]chan CallResult
 	sessionOpenCallback func(string)
+}
+
+// CallResult represents either a sucess or a failure after a RPC call.
+type CallResult struct {
+	// Result contains the RPC call result returned by the server.
+	Result interface{}
+	// Error is nil on call success otherwise it contains the RPC error.
+	Error RPCError
 }
 
 // NewClient creates a new WAMP client.
@@ -34,6 +43,7 @@ func NewClient() *Client {
 	return &Client{
 		messages: make(chan string, clientBacklog),
 		prefixes: make(prefixMap),
+		calls:    make(map[string]chan CallResult),
 	}
 }
 
@@ -59,19 +69,24 @@ func (c *Client) Prefix(prefix, URI string) error {
 }
 
 // Call makes a RPC call on the server identified by procURI (in either full URI
-// or CURIE format) with zero or more args.
+// or CURIE format) with zero or more args. Returns a channel that will receive
+// the call result (or error) on completion.
 //
 // Ref: http://wamp.ws/spec#call_message
-func (c *Client) Call(procURI string, args ...interface{}) error {
+func (c *Client) Call(procURI string, args ...interface{}) (chan CallResult, error) {
 	if debug {
 		log.Print("turnpike: sending call")
 	}
-	msg, err := createCall(newId(16), procURI, args...)
+	callId := newId(16)
+	msg, err := createCall(callId, procURI, args...)
 	if err != nil {
-		return fmt.Errorf("turnpike: %s", err)
+		return nil, fmt.Errorf("turnpike: %s", err)
 	}
 	c.messages <- string(msg)
-	return nil
+	// Channel size must be 1 to avoid blocking if no one is receiving the channel later.
+	resultCh := make(chan CallResult, 1)
+	c.calls[callId] = resultCh
+	return resultCh, nil
 }
 
 // Subscribe adds a subscription at the server for events with topicURI lasting
@@ -134,14 +149,40 @@ func (c *Client) handleCallResult(msg callResultMsg) {
 	if debug {
 		log.Print("turnpike: handling call result message")
 	}
-	// TODO:
+	resultCh, ok := c.calls[msg.CallID]
+	if !ok {
+		if debug {
+			log.Print("turnpike: missing call result handler")
+		}
+		return
+	}
+	delete(c.calls, msg.CallID)
+	r := CallResult{
+		Result: msg.Result,
+	}
+	resultCh <- r
 }
 
 func (c *Client) handleCallError(msg callErrorMsg) {
 	if debug {
 		log.Print("turnpike: handling call error message")
 	}
-	// TODO:
+	resultCh, ok := c.calls[msg.CallID]
+	if !ok {
+		if debug {
+			log.Print("turnpike: missing call result handler")
+		}
+		return
+	}
+	delete(c.calls, msg.CallID)
+	r := CallResult{
+		Error: RPCError{
+			URI:         msg.ErrorURI,
+			Description: msg.ErrorDesc,
+			Details:     msg.ErrorDetails,
+		},
+	}
+	resultCh <- r
 }
 
 func (c *Client) handleEvent(msg eventMsg) {

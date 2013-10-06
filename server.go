@@ -3,6 +3,7 @@ package turnpike
 import (
 	"code.google.com/p/go.net/websocket"
 	"encoding/json"
+	"fmt"
 	"github.com/nu7hatch/gouuid"
 	"io"
 	"log"
@@ -23,11 +24,15 @@ const (
 
 // RPCError represents a call error and is the recommended way to return an
 // error from a RPC handler.
-type RPCError interface {
-	error
-	URI() string
-	Description() string
-	Details() interface{}
+type RPCError struct {
+	URI         string
+	Description string
+	Details     interface{}
+}
+
+// Error returns an error description.
+func (e RPCError) Error() string {
+	return fmt.Sprintf("turnpike: RPC error with URI %s: %s", e.URI, e.Description)
 }
 
 type listenerMap map[string]bool
@@ -122,9 +127,9 @@ func (t *Server) handleCall(id string, msg callMsg) {
 			var errorURI, desc string
 			var details interface{}
 			if er, ok := err.(RPCError); ok {
-				errorURI = er.URI()
-				desc = er.Description()
-				details = er.Details()
+				errorURI = er.URI
+				desc = er.Description
+				details = er.Details
 			} else {
 				errorURI = msg.ProcURI + "#generic-error"
 				desc = err.Error()
