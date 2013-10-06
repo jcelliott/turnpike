@@ -11,22 +11,23 @@ var (
 )
 
 const (
-	TURNPIKE_VERSION      = "0.2.0"
-	TURNPIKE_SERVER_IDENT = "turnpike-" + TURNPIKE_VERSION
+	turnpikeVersion     = "0.2.0"
+	turnpikeServerIdent = "turnpike-" + turnpikeVersion
 )
 
+// Handler is a interface to support Go1.0.
 type Handler interface {
 	HandleWebsocket(*websocket.Conn)
 }
 
-// HandleWebsocket is a Go1.0 shim for method values
+// HandleWebsocket is a Go1.0 shim for method values.
 func HandleWebsocket(t Handler) func(*websocket.Conn) {
 	return func(conn *websocket.Conn) {
 		t.HandleWebsocket(conn)
 	}
 }
 
-// Set the logger to an externally provided one
+// Set the logger to an externally provided one.
 func SetLogger(newLog lumber.Logger) {
 	log = newLog
 }

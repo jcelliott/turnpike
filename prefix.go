@@ -6,9 +6,9 @@ import (
 	"strings"
 )
 
-type PrefixMap map[string]string
+type prefixMap map[string]string
 
-func (pm PrefixMap) RegisterPrefix(prefix, URI string) error {
+func (pm prefixMap) registerPrefix(prefix, URI string) error {
 	if _, err := url.ParseRequestURI(URI); err != nil {
 		return fmt.Errorf("Invalid URI: %s", URI)
 	}
@@ -17,7 +17,7 @@ func (pm PrefixMap) RegisterPrefix(prefix, URI string) error {
 }
 
 // returns the full URI that the curie represents
-func (pm PrefixMap) ResolveCurie(curie string) (string, error) {
+func (pm prefixMap) resolveCurie(curie string) (string, error) {
 	parts := strings.SplitN(curie, ":", 2)
 	// if there is no reference, return the URI for the prefix
 	if len(parts) < 2 {
@@ -34,12 +34,12 @@ func (pm PrefixMap) ResolveCurie(curie string) (string, error) {
 }
 
 // convenience function that will resolve a curie and pass through a URI
-func CheckCurie(pm PrefixMap, curie string) string {
+func checkCurie(pm prefixMap, curie string) string {
 	if pm == nil {
 		// no prefixes defined for this client, curie is a uri
 		return curie
 	}
-	uri, err := pm.ResolveCurie(curie)
+	uri, err := pm.resolveCurie(curie)
 	if err != nil {
 		// not registered for this client or it's a uri
 		return curie

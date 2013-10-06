@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	WAMP_SUBPROTOCOL_ID = "wamp"
+	wampProtocolId = "wamp"
 )
 
 var clientBacklog = 10
@@ -24,7 +24,7 @@ type Client struct {
 	ServerIdent         string
 	ws                  *websocket.Conn
 	messages            chan string
-	prefixes            PrefixMap
+	prefixes            prefixMap
 	sessionOpenCallback func(string)
 }
 
@@ -32,7 +32,7 @@ type Client struct {
 func NewClient() *Client {
 	return &Client{
 		messages: make(chan string, clientBacklog),
-		prefixes: make(PrefixMap),
+		prefixes: make(prefixMap),
 	}
 }
 
@@ -43,11 +43,11 @@ func NewClient() *Client {
 // Ref: http://wamp.ws/spec#prefix_message
 func (c *Client) Prefix(prefix, URI string) error {
 	log.Trace("sending prefix")
-	err := c.prefixes.RegisterPrefix(prefix, URI)
+	err := c.prefixes.registerPrefix(prefix, URI)
 	if err != nil {
 		return fmt.Errorf("turnpike: %s", err)
 	}
-	msg, err := CreatePrefix(prefix, URI)
+	msg, err := createPrefix(prefix, URI)
 	if err != nil {
 		return fmt.Errorf("turnpike: %s", err)
 	}
@@ -61,7 +61,7 @@ func (c *Client) Prefix(prefix, URI string) error {
 // Ref: http://wamp.ws/spec#call_message
 func (c *Client) Call(procURI string, args ...interface{}) error {
 	log.Trace("sending call")
-	msg, err := CreateCall(newId(16), procURI, args...)
+	msg, err := createCall(newId(16), procURI, args...)
 	if err != nil {
 		return fmt.Errorf("turnpike: %s", err)
 	}
@@ -75,7 +75,7 @@ func (c *Client) Call(procURI string, args ...interface{}) error {
 // Ref: http://wamp.ws/spec#subscribe_message
 func (c *Client) Subscribe(topicURI string) error {
 	log.Trace("sending subscribe")
-	msg, err := CreateSubscribe(topicURI)
+	msg, err := createSubscribe(topicURI)
 	if err != nil {
 		return fmt.Errorf("turnpike: %s", err)
 	}
@@ -88,7 +88,7 @@ func (c *Client) Subscribe(topicURI string) error {
 // Ref: http://wamp.ws/spec#unsubscribe_message
 func (c *Client) Unsubscribe(topicURI string) error {
 	log.Trace("sending unsubscribe")
-	msg, err := CreateUnsubscribe(topicURI)
+	msg, err := createUnsubscribe(topicURI)
 	if err != nil {
 		return fmt.Errorf("turnpike: %s", err)
 	}
@@ -105,7 +105,7 @@ func (c *Client) Unsubscribe(topicURI string) error {
 // Ref: http://wamp.ws/spec#publish_message
 func (c *Client) Publish(topicURI string, event interface{}, opts ...interface{}) error {
 	log.Trace("sending publish)")
-	msg, err := CreatePublish(topicURI, event, opts...)
+	msg, err := createPublish(topicURI, event, opts...)
 	if err != nil {
 		return fmt.Errorf("turnpike: %s", err)
 	}
@@ -119,32 +119,32 @@ func (c *Client) PublishExcludeMe(topicURI string, event interface{}) error {
 	return c.Publish(topicURI, event, true)
 }
 
-func (c *Client) handleCallResult(msg CallResultMsg) {
+func (c *Client) handleCallResult(msg callResultMsg) {
 	log.Trace("Handling call result message")
 	// TODO:
 }
 
-func (c *Client) handleCallError(msg CallErrorMsg) {
+func (c *Client) handleCallError(msg callErrorMsg) {
 	log.Trace("Handling call error message")
 	// TODO:
 }
 
-func (c *Client) handleEvent(msg EventMsg) {
+func (c *Client) handleEvent(msg eventMsg) {
 	log.Trace("Handling event message")
 	// TODO:
 }
 
-func (c *Client) ReceiveWelcome() error {
+func (c *Client) receiveWelcome() error {
 	log.Trace("Receive welcome")
 	var rec string
 	err := websocket.Message.Receive(c.ws, &rec)
 	if err != nil {
 		return fmt.Errorf("Error receiving welcome message: %s", err)
 	}
-	if typ := ParseType(rec); typ != WELCOME {
+	if typ := parseMessageType(rec); typ != msgWelcome {
 		return fmt.Errorf("First message received was not welcome")
 	}
-	var msg WelcomeMsg
+	var msg welcomeMsg
 	err = json.Unmarshal([]byte(rec), &msg)
 	if err != nil {
 		return fmt.Errorf("Error unmarshalling welcome message: %s", err)
@@ -163,7 +163,7 @@ func (c *Client) ReceiveWelcome() error {
 	return nil
 }
 
-func (c *Client) Listen() {
+func (c *Client) receive() {
 	for {
 		var rec string
 		err := websocket.Message.Receive(c.ws, &rec)
@@ -177,34 +177,34 @@ func (c *Client) Listen() {
 
 		data := []byte(rec)
 
-		switch typ := ParseType(rec); typ {
-		case CALLRESULT:
-			var msg CallResultMsg
+		switch typ := parseMessageType(rec); typ {
+		case msgCallResult:
+			var msg callResultMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
 				log.Error("Error unmarshalling call result message: %s", err)
 				continue
 			}
 			c.handleCallResult(msg)
-		case CALLERROR:
-			var msg CallErrorMsg
+		case msgCallError:
+			var msg callErrorMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
 				log.Error("Error unmarshalling call error message: %s", err)
 				continue
 			}
 			c.handleCallError(msg)
-		case EVENT:
-			var msg EventMsg
+		case msgEvent:
+			var msg eventMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
 				log.Error("Error unmarshalling event message: %s", err)
 				continue
 			}
 			c.handleEvent(msg)
-		case PREFIX, CALL, SUBSCRIBE, UNSUBSCRIBE, PUBLISH:
-			log.Error("Client -> server message received, ignored: %s", TypeString(typ))
-		case WELCOME:
+		case msgPrefix, msgCall, msgSubscribe, msgUnsubscribe, msgPublish:
+			log.Error("Client -> server message received, ignored: %s", messageTypeString(typ))
+		case msgWelcome:
 			log.Error("Received extraneous welcome message, ignored")
 		default:
 			log.Error("Invalid message format, message dropped: %s", data)
@@ -212,7 +212,7 @@ func (c *Client) Listen() {
 	}
 }
 
-func (c *Client) Send() {
+func (c *Client) send() {
 	for msg := range c.messages {
 		log.Trace("Sending message: %s", msg)
 		if err := websocket.Message.Send(c.ws, msg); err != nil {
@@ -226,18 +226,18 @@ func (c *Client) Send() {
 func (c *Client) Connect(server, origin string) error {
 	log.Trace("connect")
 	var err error
-	if c.ws, err = websocket.Dial(server, WAMP_SUBPROTOCOL_ID, origin); err != nil {
+	if c.ws, err = websocket.Dial(server, wampProtocolId, origin); err != nil {
 		return fmt.Errorf("Error connecting to websocket server: %s", err)
 	}
 
 	// Receive welcome message
-	if err = c.ReceiveWelcome(); err != nil {
+	if err = c.receiveWelcome(); err != nil {
 		return err
 	}
 	log.Info("Connected to server: %s", server)
 
-	go c.Listen()
-	go c.Send()
+	go c.receive()
+	go c.send()
 
 	return nil
 }

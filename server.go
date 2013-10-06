@@ -16,8 +16,8 @@ var (
 )
 
 const (
-	CLIENT_CONN_TIMEOUT = 6
-	CLIENT_MAX_FAILURES = 3
+	clientConnTimeout = 6
+	clientMaxFailures = 3
 )
 
 // RPCError represents a call error and is the recommended way to return an
@@ -31,17 +31,17 @@ type RPCError interface {
 
 type listenerMap map[string]bool
 
-func (lm listenerMap) Add(id string) {
+func (lm listenerMap) add(id string) {
 	lm[id] = true
 }
-func (lm listenerMap) Contains(id string) bool {
+func (lm listenerMap) contains(id string) bool {
 	return lm[id]
 }
-func (lm listenerMap) Remove(id string) {
+func (lm listenerMap) remove(id string) {
 	delete(lm, id)
 }
 
-// RPCHandler is an interface for that handler to RPC calls should implement.
+// RPCHandler is an interface for that handlers to RPC calls should implement.
 // The first parameter is the call ID, the second is the proc URI. Last comes
 // all optional arguments to the RPC call. The return can be of any type that
 // can be marshaled to JSON, or a error (preferably RPCError but any error works.)
@@ -56,7 +56,7 @@ type Server struct {
 	//               topicID  clients
 	subscriptions map[string]listenerMap
 	//           client    prefixes
-	prefixes            map[string]PrefixMap
+	prefixes            map[string]prefixMap
 	rpcHooks            map[string]RPCHandler
 	sessionOpenCallback func(string)
 	subLock             *sync.Mutex
@@ -78,7 +78,7 @@ func NewServer() *Server {
 	s := &Server{
 		clients:       make(map[string]chan string),
 		subscriptions: make(map[string]listenerMap),
-		prefixes:      make(map[string]PrefixMap),
+		prefixes:      make(map[string]prefixMap),
 		rpcHooks:      make(map[string]RPCHandler),
 		subLock:       new(sync.Mutex),
 	}
@@ -89,18 +89,18 @@ func NewServer() *Server {
 	return s
 }
 
-func (t *Server) handlePrefix(id string, msg PrefixMsg) {
+func (t *Server) handlePrefix(id string, msg prefixMsg) {
 	log.Trace("turnpike: handling prefix message")
 	if _, ok := t.prefixes[id]; !ok {
-		t.prefixes[id] = make(PrefixMap)
+		t.prefixes[id] = make(prefixMap)
 	}
-	if err := t.prefixes[id].RegisterPrefix(msg.Prefix, msg.URI); err != nil {
+	if err := t.prefixes[id].registerPrefix(msg.Prefix, msg.URI); err != nil {
 		log.Error("turnpike: error registering prefix: %s", err)
 	}
 	log.Debug("turnpike: client %s registered prefix '%s' for URI: %s", id, msg.Prefix, msg.URI)
 }
 
-func (t *Server) handleCall(id string, msg CallMsg) {
+func (t *Server) handleCall(id string, msg callMsg) {
 	log.Trace("turnpike: handling call message")
 	var out string
 	var err error
@@ -121,16 +121,16 @@ func (t *Server) handleCall(id string, msg CallMsg) {
 			}
 
 			if details != nil {
-				out, err = CreateCallError(msg.CallID, errorURI, desc, details)
+				out, err = createCallError(msg.CallID, errorURI, desc, details)
 			} else {
-				out, err = CreateCallError(msg.CallID, errorURI, desc)
+				out, err = createCallError(msg.CallID, errorURI, desc)
 			}
 		} else {
-			out, err = CreateCallResult(msg.CallID, res)
+			out, err = createCallResult(msg.CallID, res)
 		}
 	} else {
 		log.Warn("turnpike: RPC call not registered: %s", msg.ProcURI)
-		out, err = CreateCallError(msg.CallID, "error:notimplemented", "RPC call '%s' not implemented", msg.ProcURI)
+		out, err = createCallError(msg.CallID, "error:notimplemented", "RPC call '%s' not implemented", msg.ProcURI)
 	}
 
 	if err != nil {
@@ -143,38 +143,38 @@ func (t *Server) handleCall(id string, msg CallMsg) {
 	}
 }
 
-func (t *Server) handleSubscribe(id string, msg SubscribeMsg) {
+func (t *Server) handleSubscribe(id string, msg subscribeMsg) {
 	log.Trace("turnpike: handling subscribe message")
 	t.subLock.Lock()
-	topic := CheckCurie(t.prefixes[id], msg.TopicURI)
+	topic := checkCurie(t.prefixes[id], msg.TopicURI)
 	if _, ok := t.subscriptions[topic]; !ok {
 		t.subscriptions[topic] = make(map[string]bool)
 	}
-	t.subscriptions[topic].Add(id)
+	t.subscriptions[topic].add(id)
 	t.subLock.Unlock()
 	log.Debug("turnpike: client %s subscribed to topic: %s", id, topic)
 }
 
-func (t *Server) handleUnsubscribe(id string, msg UnsubscribeMsg) {
+func (t *Server) handleUnsubscribe(id string, msg unsubscribeMsg) {
 	log.Trace("turnpike: handling unsubscribe message")
 	t.subLock.Lock()
-	topic := CheckCurie(t.prefixes[id], msg.TopicURI)
+	topic := checkCurie(t.prefixes[id], msg.TopicURI)
 	if lm, ok := t.subscriptions[topic]; ok {
-		lm.Remove(id)
+		lm.remove(id)
 	}
 	t.subLock.Unlock()
 	log.Debug("turnpike: client %s unsubscribed from topic: %s", id, topic)
 }
 
-func (t *Server) handlePublish(id string, msg PublishMsg) {
+func (t *Server) handlePublish(id string, msg publishMsg) {
 	log.Trace("turnpike: handling publish message")
-	topic := CheckCurie(t.prefixes[id], msg.TopicURI)
+	topic := checkCurie(t.prefixes[id], msg.TopicURI)
 	lm, ok := t.subscriptions[topic]
 	if !ok {
 		return
 	}
 
-	out, err := CreateEvent(topic, msg.Event)
+	out, err := createEvent(topic, msg.Event)
 	if err != nil {
 		log.Error("turnpike: error creating event message: %s", err)
 		return
@@ -244,7 +244,7 @@ func (t *Server) HandleWebsocket(conn *websocket.Conn) {
 	id := tid.String()
 	log.Info("turnpike: client connected: %s", id)
 
-	arr, err := CreateWelcome(id, TURNPIKE_SERVER_IDENT)
+	arr, err := createWelcome(id, turnpikeServerIdent)
 	if err != nil {
 		log.Error("turnpike: error encoding welcome message")
 		return
@@ -267,13 +267,13 @@ func (t *Server) HandleWebsocket(conn *websocket.Conn) {
 	go func() {
 		for msg := range c {
 			log.Trace("turnpike: sending message: %s", msg)
-			conn.SetWriteDeadline(time.Now().Add(CLIENT_CONN_TIMEOUT * time.Second))
+			conn.SetWriteDeadline(time.Now().Add(clientConnTimeout * time.Second))
 			err := websocket.Message.Send(conn, msg)
 			if err != nil {
 				if nErr, ok := err.(net.Error); ok && (nErr.Timeout() || nErr.Temporary()) {
 					log.Warn("Network error: %s", nErr)
 					failures++
-					if failures > CLIENT_MAX_FAILURES {
+					if failures > clientMaxFailures {
 						break
 					}
 				} else {
@@ -299,49 +299,49 @@ func (t *Server) HandleWebsocket(conn *websocket.Conn) {
 
 		data := []byte(rec)
 
-		switch typ := ParseType(rec); typ {
-		case PREFIX:
-			var msg PrefixMsg
+		switch typ := parseMessageType(rec); typ {
+		case msgPrefix:
+			var msg prefixMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
 				log.Error("turnpike: error unmarshalling prefix message: %s", err)
 				continue
 			}
 			t.handlePrefix(id, msg)
-		case CALL:
-			var msg CallMsg
+		case msgCall:
+			var msg callMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
 				log.Error("turnpike: error unmarshalling call message: %s", err)
 				continue
 			}
 			t.handleCall(id, msg)
-		case SUBSCRIBE:
-			var msg SubscribeMsg
+		case msgSubscribe:
+			var msg subscribeMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
 				log.Error("turnpike: error unmarshalling subscribe message: %s", err)
 				continue
 			}
 			t.handleSubscribe(id, msg)
-		case UNSUBSCRIBE:
-			var msg UnsubscribeMsg
+		case msgUnsubscribe:
+			var msg unsubscribeMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
 				log.Error("turnpike: error unmarshalling unsubscribe message: %s", err)
 				continue
 			}
 			t.handleUnsubscribe(id, msg)
-		case PUBLISH:
-			var msg PublishMsg
+		case msgPublish:
+			var msg publishMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
 				log.Error("turnpike: error unmarshalling publish message: %s", err)
 				continue
 			}
 			t.handlePublish(id, msg)
-		case WELCOME, CALLRESULT, CALLERROR, EVENT:
-			log.Error("turnpike: server -> client message received, ignored: %s", TypeString(typ))
+		case msgWelcome, msgCallResult, msgCallError, msgEvent:
+			log.Error("turnpike: server -> client message received, ignored: %s", messageTypeString(typ))
 		default:
 			log.Error("turnpike: invalid message format, message dropped: %s", data)
 		}
@@ -371,7 +371,7 @@ func (t *Server) UnregisterRPC(uri string) {
 
 // SendEvent sends an event with topic directly (not via Client.Publish())
 func (t *Server) SendEvent(topic string, event interface{}) {
-	t.handlePublish(topic, PublishMsg{
+	t.handlePublish(topic, publishMsg{
 		TopicURI: topic,
 		Event:    event,
 	})
