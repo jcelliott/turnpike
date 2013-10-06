@@ -14,14 +14,14 @@ type testObj struct {
 
 func TestWelcome(t *testing.T) {
 	exp := `[0,"12345678",1,"turnpike-0.1.0"]`
-	msg, err := CreateWelcome("12345678", "turnpike-0.1.0")
+	msg, err := createWelcome("12345678", "turnpike-0.1.0")
 	if err != nil {
 		t.Errorf("error creating welcome message: %s", err)
 	}
 	assert.Equal(t, exp, string(msg))
 
 	exp = `[0,"87654321",1,"a different server"]`
-	msg, err = CreateWelcome("87654321", "a different server")
+	msg, err = createWelcome("87654321", "a different server")
 	if err != nil {
 		t.Errorf("error creating welcome message: %s", err)
 	}
@@ -30,8 +30,8 @@ func TestWelcome(t *testing.T) {
 
 func TestParseWelcome(t *testing.T) {
 	data := []byte(`[0,"12345678",1,"turnpike-0.1.0"]`)
-	var msg WelcomeMsg
-	assert.Implements(t, (*json.Unmarshaler)(nil), new(WelcomeMsg))
+	var msg welcomeMsg
+	assert.Implements(t, (*json.Unmarshaler)(nil), new(welcomeMsg))
 	err := json.Unmarshal(data, &msg)
 	if err != nil {
 		t.Errorf("error unmarshalling json: %s", err)
@@ -43,21 +43,21 @@ func TestParseWelcome(t *testing.T) {
 
 func TestPrefix(t *testing.T) {
 	exp := `[1,"prefix","http://www.example.com/api/start"]`
-	msg, err := CreatePrefix("prefix", "http://www.example.com/api/start")
+	msg, err := createPrefix("prefix", "http://www.example.com/api/start")
 	if err != nil {
 		t.Errorf("error creating prefix message: %s", err)
 	}
 	assert.Equal(t, exp, string(msg))
 
 	// test bad uri
-	_, err = CreatePrefix("prefix", "httpppppppp")
+	_, err = createPrefix("prefix", "httpppppppp")
 	assert.Error(t, err)
 }
 
 func TestParsePrefix(t *testing.T) {
 	data := []byte(`[1,"prefix","http://www.example.com/api/start"]`)
-	var msg PrefixMsg
-	assert.Implements(t, (*json.Unmarshaler)(nil), new(PrefixMsg))
+	var msg prefixMsg
+	assert.Implements(t, (*json.Unmarshaler)(nil), new(prefixMsg))
 	err := json.Unmarshal(data, &msg)
 	if err != nil {
 		t.Errorf("error unmarshalling json: %s", err)
@@ -89,12 +89,12 @@ func TestCall(t *testing.T) {
 	compareCall(t, exp, "1234", "http://example.com/rpc", obj, "astring")
 
 	// test bad uri
-	_, err := CreateCall("abcd", "httpnopenopenope")
+	_, err := createCall("abcd", "httpnopenopenope")
 	assert.Error(t, err)
 }
 
 func compareCall(t *testing.T, expected, callID, procURI string, args ...interface{}) {
-	msg, err := CreateCall(callID, procURI, args...)
+	msg, err := createCall(callID, procURI, args...)
 	if err != nil {
 		t.Errorf("error creating call message: %s", err)
 	}
@@ -104,8 +104,8 @@ func compareCall(t *testing.T, expected, callID, procURI string, args ...interfa
 func TestParseCall(t *testing.T) {
 	// no call args
 	data := []byte(`[2,"123456","http://example.com/testRPC"]`)
-	var msg CallMsg
-	assert.Implements(t, (*json.Unmarshaler)(nil), new(CallMsg))
+	var msg callMsg
+	assert.Implements(t, (*json.Unmarshaler)(nil), new(callMsg))
 	err := json.Unmarshal(data, &msg)
 	if err != nil {
 		t.Errorf("error unmarshalling json: %s", err)
@@ -154,7 +154,7 @@ func TestCallResult(t *testing.T) {
 }
 
 func compareCallResult(t *testing.T, expected, callID string, result interface{}) {
-	msg, err := CreateCallResult(callID, result)
+	msg, err := createCallResult(callID, result)
 	if err != nil {
 		t.Errorf("error creating callresult message: %s", err)
 	}
@@ -164,8 +164,8 @@ func compareCallResult(t *testing.T, expected, callID string, result interface{}
 func TestParseCallResult(t *testing.T) {
 	// null result
 	data := []byte(`[3,"123456",null]`)
-	var msg CallResultMsg
-	assert.Implements(t, (*json.Unmarshaler)(nil), new(CallResultMsg))
+	var msg callResultMsg
+	assert.Implements(t, (*json.Unmarshaler)(nil), new(callResultMsg))
 	err := json.Unmarshal(data, &msg)
 	if err != nil {
 		t.Errorf("error unmarshalling json: %s", err)
@@ -210,7 +210,7 @@ func TestCallError(t *testing.T) {
 }
 
 func compareCallError(t *testing.T, expected, callID, errorURI, errorDesc string, errorDetails ...interface{}) {
-	msg, err := CreateCallError(callID, errorURI, errorDesc, errorDetails...)
+	msg, err := createCallError(callID, errorURI, errorDesc, errorDetails...)
 	if err != nil {
 		t.Errorf("error creating callerror message: %s", err)
 	}
@@ -220,8 +220,8 @@ func compareCallError(t *testing.T, expected, callID, errorURI, errorDesc string
 func TestParseCallError(t *testing.T) {
 	// generic error
 	data := []byte(`[4,"1234","http://example.com/app/error#generic","there was an error"]`)
-	var msg CallErrorMsg
-	assert.Implements(t, (*json.Unmarshaler)(nil), new(CallErrorMsg))
+	var msg callErrorMsg
+	assert.Implements(t, (*json.Unmarshaler)(nil), new(callErrorMsg))
 	err := json.Unmarshal(data, &msg)
 	if err != nil {
 		t.Errorf("error unmarshalling json: %s", err)
@@ -258,21 +258,21 @@ func TestParseCallError(t *testing.T) {
 
 func TestSubscribe(t *testing.T) {
 	exp := `[5,"http://example.com/simple"]`
-	msg, err := CreateSubscribe("http://example.com/simple")
+	msg, err := createSubscribe("http://example.com/simple")
 	if err != nil {
 		t.Errorf("error creating subscribe message: %s", err)
 	}
 	assert.Equal(t, exp, string(msg))
 
 	// test bad uri
-	_, err = CreateSubscribe("qwerty")
+	_, err = createSubscribe("qwerty")
 	assert.Error(t, err)
 }
 
 func TestParseSubscribe(t *testing.T) {
 	data := []byte(`[5,"http://example.com/simple"]`)
-	var msg SubscribeMsg
-	assert.Implements(t, (*json.Unmarshaler)(nil), new(SubscribeMsg))
+	var msg subscribeMsg
+	assert.Implements(t, (*json.Unmarshaler)(nil), new(subscribeMsg))
 	err := json.Unmarshal(data, &msg)
 	if err != nil {
 		t.Errorf("error unmarshalling json: %s", err)
@@ -282,21 +282,21 @@ func TestParseSubscribe(t *testing.T) {
 
 func TestUnsubscribe(t *testing.T) {
 	exp := `[6,"http://example.com/something"]`
-	msg, err := CreateUnsubscribe("http://example.com/something")
+	msg, err := createUnsubscribe("http://example.com/something")
 	if err != nil {
 		t.Errorf("error creating unsubscribe message: %s", err)
 	}
 	assert.Equal(t, exp, string(msg))
 
 	// test bad uri
-	_, err = CreateUnsubscribe("qwerty")
+	_, err = createUnsubscribe("qwerty")
 	assert.Error(t, err)
 }
 
 func TestParseUnsubscribe(t *testing.T) {
 	data := []byte(`[6,"http://example.com/something"]`)
-	var msg UnsubscribeMsg
-	assert.Implements(t, (*json.Unmarshaler)(nil), new(UnsubscribeMsg))
+	var msg unsubscribeMsg
+	assert.Implements(t, (*json.Unmarshaler)(nil), new(unsubscribeMsg))
 	err := json.Unmarshal(data, &msg)
 	if err != nil {
 		t.Errorf("error unmarshalling json: %s", err)
@@ -331,12 +331,12 @@ func TestPublish(t *testing.T) {
 	comparePublish(t, exp, "http://example.com/api/testing:thing", "this is an event", []string{}, []string{"sam", "fred"})
 
 	// test bad uri
-	_, err := CreatePublish("asdfasdf", "bad uri")
+	_, err := createPublish("asdfasdf", "bad uri")
 	assert.Error(t, err)
 }
 
 func comparePublish(t *testing.T, expected, topic string, event interface{}, args ...interface{}) {
-	msg, err := CreatePublish(topic, event, args...)
+	msg, err := createPublish(topic, event, args...)
 	if err != nil {
 		t.Errorf("error creating message: %s", err)
 	}
@@ -346,8 +346,8 @@ func comparePublish(t *testing.T, expected, topic string, event interface{}, arg
 func TestParsePublish(t *testing.T) {
 	// nill event
 	data := []byte(`[7,"http://example.com/api/test",null]`)
-	var msg PublishMsg
-	assert.Implements(t, (*json.Unmarshaler)(nil), new(PublishMsg))
+	var msg publishMsg
+	assert.Implements(t, (*json.Unmarshaler)(nil), new(publishMsg))
 	err := json.Unmarshal(data, &msg)
 	if err != nil {
 		t.Errorf("error unmarshalling json: %s", err)
@@ -429,12 +429,12 @@ func TestEvent(t *testing.T) {
 	compareEvent(t, exp, "http://www.example.com/doc#thing", obj)
 
 	// test bad uri
-	_, err := CreateEvent("asdfasdf", "bad uri")
+	_, err := createEvent("asdfasdf", "bad uri")
 	assert.Error(t, err)
 }
 
 func compareEvent(t *testing.T, expected, topic string, event interface{}) {
-	msg, err := CreateEvent(topic, event)
+	msg, err := createEvent(topic, event)
 	if err != nil {
 		t.Errorf("error creating message: %s", err)
 	}
@@ -444,8 +444,8 @@ func compareEvent(t *testing.T, expected, topic string, event interface{}) {
 func TestParseEvent(t *testing.T) {
 	// nil event
 	data := []byte(`[8,"http://example.com/api/test",null]`)
-	var msg EventMsg
-	assert.Implements(t, (*json.Unmarshaler)(nil), new(EventMsg))
+	var msg eventMsg
+	assert.Implements(t, (*json.Unmarshaler)(nil), new(eventMsg))
 	err := json.Unmarshal(data, &msg)
 	if err != nil {
 		t.Errorf("error unmarshalling json: %s", err)
@@ -455,7 +455,7 @@ func TestParseEvent(t *testing.T) {
 
 	// simple event
 	data = []byte(`[8,"http://example.com/api/testing:thing","this is an event"]`)
-	assert.Implements(t, (*json.Unmarshaler)(nil), new(EventMsg))
+	assert.Implements(t, (*json.Unmarshaler)(nil), new(eventMsg))
 	err = json.Unmarshal(data, &msg)
 	if err != nil {
 		t.Errorf("error unmarshalling json: %s", err)
@@ -465,7 +465,7 @@ func TestParseEvent(t *testing.T) {
 
 	// complex event
 	data = []byte(`[8,"http://www.example.com/doc#thing",{"name":"the test","value":17.3,"list":[1,2,3]}]`)
-	assert.Implements(t, (*json.Unmarshaler)(nil), new(EventMsg))
+	assert.Implements(t, (*json.Unmarshaler)(nil), new(eventMsg))
 	err = json.Unmarshal(data, &msg)
 	if err != nil {
 		t.Errorf("error unmarshalling json: %s", err)
@@ -476,18 +476,18 @@ func TestParseEvent(t *testing.T) {
 	assert.Equal(t, 3, msg.Event.(map[string]interface{})["list"].([]interface{})[2])
 }
 
-func TestParseType(t *testing.T) {
+func TestParseMessageType(t *testing.T) {
 	data := `[8,"http://example.com/api/test",null]`
-	i := ParseType(data)
-	assert.Equal(t, EVENT, i)
+	i := parseMessageType(data)
+	assert.Equal(t, msgEvent, i)
 
 	data = `[true,"blah"]`
-	i = ParseType(data)
+	i = parseMessageType(data)
 	assert.Equal(t, -1, i)
 }
 
-func TestTypeString(t *testing.T) {
-	assert.Equal(t, "WELCOME", TypeString(0))
-	assert.Equal(t, "SUBSCRIBE", TypeString(5))
-	assert.Equal(t, "", TypeString(9))
+func TestMessageTypeString(t *testing.T) {
+	assert.Equal(t, "WELCOME", messageTypeString(0))
+	assert.Equal(t, "SUBSCRIBE", messageTypeString(5))
+	assert.Equal(t, "", messageTypeString(9))
 }
