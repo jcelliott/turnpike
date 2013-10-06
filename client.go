@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 )
 
 const (
@@ -44,9 +45,9 @@ func (c *Client) Prefix(prefix, URI string) error {
 	return nil
 }
 
-func (c *Client) Call(callID, procURI string, args ...interface{}) error {
+func (c *Client) Call(procURI string, args ...interface{}) error {
 	log.Trace("sending call")
-	msg, err := CreateCall(callID, procURI, args...)
+	msg, err := CreateCall(newId(16), procURI, args...)
 	if err != nil {
 		return fmt.Errorf("turnpike: %s", err)
 	}
@@ -213,4 +214,14 @@ func (c *Client) Connect(server, origin string) error {
 // The callback function must accept a string argument that is the session ID.
 func (c *Client) SetSessionOpenCallback(f func(string)) {
 	c.sessionOpenCallback = f
+}
+
+// newId generates a random string of fixed size.
+func newId(size int) string {
+	const alpha = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz0123456789-_"
+	buf := make([]byte, size)
+	for i := 0; i < size; i++ {
+		buf[i] = alpha[rand.Intn(len(alpha))]
+	}
+	return string(buf)
 }
