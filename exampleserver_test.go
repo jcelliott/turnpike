@@ -6,7 +6,7 @@ import (
 	"net/http"
 )
 
-func ExampleNewServer() {
+func ExampleServer_NewServer() {
 	s := turnpike.NewServer()
 	ws := websocket.Handler(s.HandleWebsocket)
 
