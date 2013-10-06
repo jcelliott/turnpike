@@ -21,10 +21,11 @@ type Client struct {
 	// ProtocolVersion is the version of the WAMP protocol received at the start of the session.
 	ProtocolVersion int
 	// ServerIdent is the server ID (ie "turnpike, autobahn") received at the start of the session.
-	ServerIdent string
-	ws          *websocket.Conn
-	messages    chan string
-	prefixes    PrefixMap
+	ServerIdent         string
+	ws                  *websocket.Conn
+	messages            chan string
+	prefixes            PrefixMap
+	sessionOpenCallback func(string)
 }
 
 // NewClient creates a new WAMP client.
