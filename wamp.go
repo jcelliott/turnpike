@@ -8,18 +8,18 @@ import (
 )
 
 const (
-	WELCOME = iota
-	PREFIX
-	CALL
-	CALLRESULT
-	CALLERROR
-	SUBSCRIBE
-	UNSUBSCRIBE
-	PUBLISH
-	EVENT
+	msgWelcome = iota
+	msgPrefix
+	msgCall
+	msgCallResult
+	msgCallError
+	msgSubscribe
+	msgUnsubscribe
+	msgPublish
+	msgEvent
 )
 
-const PROTOCOL_VERSION = 1
+const wampProtocolVersion = 1
 
 var (
 	typeReg = regexp.MustCompile("^\\s*\\[\\s*(\\d+)\\s*,")
@@ -32,16 +32,20 @@ type WAMPError struct {
 }
 
 var (
-	ErrInvalidURI          = &WAMPError{"invalid URI"}
-	ErrInvalidNumArgs      = &WAMPError{"invalid number of arguments in message"}
+	// An ErrInvalidURI describes an invalid URI.
+	ErrInvalidURI = &WAMPError{"invalid URI"}
+	// An ErrInvalidNumArgs describes invalid number of arguments in a message.
+	ErrInvalidNumArgs = &WAMPError{"invalid number of arguments in message"}
+	// An ErrUnsupportedProtocol describes an unsupported WAMP protocol in a welcome message.
 	ErrUnsupportedProtocol = &WAMPError{"unsupported protocol"}
 )
 
+// Error implements the error interface to provide a message.
 func (e *WAMPError) Error() string {
 	return "wamp: " + e.Msg
 }
 
-func ParseType(msg string) int {
+func parseMessageType(msg string) int {
 	match := typeReg.FindStringSubmatch(msg)
 	if match == nil {
 		return -1
@@ -50,7 +54,7 @@ func ParseType(msg string) int {
 	return i
 }
 
-func TypeString(typ int) string {
+func messageTypeString(typ int) string {
 	types := []string{"WELCOME", "PREFIX", "CALL", "CALLRESULT", "CALLERROR", "SUBSCRIBE", "UNSUBSCRIBE", "PUBLISH", "EVENT"}
 	if typ >= 0 && typ < 9 {
 		return types[typ]
@@ -59,13 +63,13 @@ func TypeString(typ int) string {
 }
 
 // WELCOME
-type WelcomeMsg struct {
+type welcomeMsg struct {
 	SessionId       string
 	ProtocolVersion int
 	ServerIdent     string
 }
 
-func (msg *WelcomeMsg) UnmarshalJSON(jsonData []byte) error {
+func (msg *welcomeMsg) UnmarshalJSON(jsonData []byte) error {
 	var data []interface{}
 	err := json.Unmarshal(jsonData, &data)
 	if err != nil {
@@ -92,17 +96,17 @@ func (msg *WelcomeMsg) UnmarshalJSON(jsonData []byte) error {
 // Welcome returns a json encoded WAMP 'WELCOME' message as a byte slice
 // sessionId is a randomly generated string provided by the server, serverIdent
 // is a string that identifies the WAMP server
-func CreateWelcome(sessionId, serverIdent string) (string, error) {
-	return createWAMPMessage(WELCOME, sessionId, PROTOCOL_VERSION, serverIdent)
+func createWelcome(sessionId, serverIdent string) (string, error) {
+	return createWAMPMessage(msgWelcome, sessionId, wampProtocolVersion, serverIdent)
 }
 
 // PREFIX
-type PrefixMsg struct {
+type prefixMsg struct {
 	Prefix string
 	URI    string
 }
 
-func (msg *PrefixMsg) UnmarshalJSON(jsonData []byte) error {
+func (msg *prefixMsg) UnmarshalJSON(jsonData []byte) error {
 	var data []interface{}
 	err := json.Unmarshal(jsonData, &data)
 	if err != nil {
@@ -122,21 +126,21 @@ func (msg *PrefixMsg) UnmarshalJSON(jsonData []byte) error {
 }
 
 // Prefix returns a json encoded WAMP 'PREFIX' message as a byte slice
-func CreatePrefix(prefix, URI string) (string, error) {
+func createPrefix(prefix, URI string) (string, error) {
 	if _, err := url.ParseRequestURI(URI); err != nil {
 		return "", &WAMPError{"invalid URI: " + URI}
 	}
-	return createWAMPMessage(PREFIX, prefix, URI)
+	return createWAMPMessage(msgPrefix, prefix, URI)
 }
 
 // CALL
-type CallMsg struct {
+type callMsg struct {
 	CallID   string
 	ProcURI  string
 	CallArgs []interface{}
 }
 
-func (msg *CallMsg) UnmarshalJSON(jsonData []byte) error {
+func (msg *callMsg) UnmarshalJSON(jsonData []byte) error {
 	var data []interface{}
 	err := json.Unmarshal(jsonData, &data)
 	if err != nil {
@@ -161,24 +165,24 @@ func (msg *CallMsg) UnmarshalJSON(jsonData []byte) error {
 // Call returns a json encoded WAMP 'CALL' message as a byte slice
 // callID must be a randomly generated string, procURI is the URI of the remote
 // procedure to be called, followed by zero or more call arguments
-func CreateCall(callID, procURI string, args ...interface{}) (string, error) {
+func createCall(callID, procURI string, args ...interface{}) (string, error) {
 	if _, err := url.ParseRequestURI(procURI); err != nil {
 		return "", &WAMPError{"invalid URI: " + procURI}
 	}
 	var data []interface{}
-	data = append(data, CALL, callID, procURI)
+	data = append(data, msgCall, callID, procURI)
 	data = append(data, args...)
 	b, err := json.Marshal(data)
 	return string(b), err
 }
 
 // CALLRESULT
-type CallResultMsg struct {
+type callResultMsg struct {
 	CallID string
 	Result interface{}
 }
 
-func (msg *CallResultMsg) UnmarshalJSON(jsonData []byte) error {
+func (msg *callResultMsg) UnmarshalJSON(jsonData []byte) error {
 	var data []interface{}
 	err := json.Unmarshal(jsonData, &data)
 	if err != nil {
@@ -198,19 +202,19 @@ func (msg *CallResultMsg) UnmarshalJSON(jsonData []byte) error {
 
 // CallResult returns a json encoded WAMP 'CALLRESULT' message as a byte slice
 // callID is the randomly generated string provided by the client
-func CreateCallResult(callID string, result interface{}) (string, error) {
-	return createWAMPMessage(CALLRESULT, callID, result)
+func createCallResult(callID string, result interface{}) (string, error) {
+	return createWAMPMessage(msgCallResult, callID, result)
 }
 
 // CALLERROR
-type CallErrorMsg struct {
+type callErrorMsg struct {
 	CallID       string
 	ErrorURI     string
 	ErrorDesc    string
 	ErrorDetails interface{}
 }
 
-func (msg *CallErrorMsg) UnmarshalJSON(jsonData []byte) error {
+func (msg *callErrorMsg) UnmarshalJSON(jsonData []byte) error {
 	var data []interface{}
 	err := json.Unmarshal(jsonData, &data)
 	if err != nil {
@@ -239,23 +243,23 @@ func (msg *CallErrorMsg) UnmarshalJSON(jsonData []byte) error {
 // callID is the randomly generated string provided by the client, errorURI is
 // a URI identifying the error, errorDesc is a human-readable description of the
 // error (for developers), errorDetails, if present, is a non-nil object
-func CreateCallError(callID, errorURI, errorDesc string, errorDetails ...interface{}) (string, error) {
+func createCallError(callID, errorURI, errorDesc string, errorDetails ...interface{}) (string, error) {
 	if _, err := url.ParseRequestURI(errorURI); err != nil {
 		return "", &WAMPError{"invalid URI: " + errorURI}
 	}
 	var data []interface{}
-	data = append(data, CALLERROR, callID, errorURI, errorDesc)
+	data = append(data, msgCallError, callID, errorURI, errorDesc)
 	data = append(data, errorDetails...)
 	b, err := json.Marshal(data)
 	return string(b), err
 }
 
 // SUBSCRIBE
-type SubscribeMsg struct {
+type subscribeMsg struct {
 	TopicURI string
 }
 
-func (msg *SubscribeMsg) UnmarshalJSON(jsonData []byte) error {
+func (msg *subscribeMsg) UnmarshalJSON(jsonData []byte) error {
 	var data []interface{}
 	err := json.Unmarshal(jsonData, &data)
 	if err != nil {
@@ -273,16 +277,16 @@ func (msg *SubscribeMsg) UnmarshalJSON(jsonData []byte) error {
 
 // Subscribe returns a json encoded WAMP 'SUBSCRIBE' message as a byte slice
 // topicURI is the topic that the client wants to subscribe to
-func CreateSubscribe(topicURI string) (string, error) {
-	return createWAMPMessagePubSub(SUBSCRIBE, topicURI)
+func createSubscribe(topicURI string) (string, error) {
+	return createWAMPMessagePubSub(msgSubscribe, topicURI)
 }
 
 // UNSUBSCRIBE
-type UnsubscribeMsg struct {
+type unsubscribeMsg struct {
 	TopicURI string
 }
 
-func (msg *UnsubscribeMsg) UnmarshalJSON(jsonData []byte) error {
+func (msg *unsubscribeMsg) UnmarshalJSON(jsonData []byte) error {
 	var data []interface{}
 	err := json.Unmarshal(jsonData, &data)
 	if err != nil {
@@ -300,12 +304,12 @@ func (msg *UnsubscribeMsg) UnmarshalJSON(jsonData []byte) error {
 
 // Unsubscribe returns a json encoded WAMP 'UNSUBSCRIBE' message as a byte slice
 // topicURI is the topic that the client wants to unsubscribe from
-func CreateUnsubscribe(topicURI string) (string, error) {
-	return createWAMPMessagePubSub(UNSUBSCRIBE, topicURI)
+func createUnsubscribe(topicURI string) (string, error) {
+	return createWAMPMessagePubSub(msgUnsubscribe, topicURI)
 }
 
 // PUBLISH
-type PublishMsg struct {
+type publishMsg struct {
 	TopicURI     string
 	Event        interface{}
 	ExcludeMe    bool
@@ -313,7 +317,7 @@ type PublishMsg struct {
 	EligibleList []string
 }
 
-func (msg *PublishMsg) UnmarshalJSON(jsonData []byte) error {
+func (msg *publishMsg) UnmarshalJSON(jsonData []byte) error {
 	var data []interface{}
 	err := json.Unmarshal(jsonData, &data)
 	if err != nil {
@@ -364,20 +368,20 @@ func (msg *PublishMsg) UnmarshalJSON(jsonData []byte) error {
 // [ topicURI, event, exclude ]
 // [ topicURI, event, exclude, eligible ]
 // event can be nil, a simple json type, or a complex json type
-func CreatePublish(topicURI string, event interface{}, opts ...interface{}) (string, error) {
+func createPublish(topicURI string, event interface{}, opts ...interface{}) (string, error) {
 	var data []interface{}
-	data = append(data, PUBLISH, topicURI, event)
+	data = append(data, msgPublish, topicURI, event)
 	data = append(data, opts...)
 	return createWAMPMessagePubSub(data...)
 }
 
 // EVENT
-type EventMsg struct {
+type eventMsg struct {
 	TopicURI string
 	Event    interface{}
 }
 
-func (msg *EventMsg) UnmarshalJSON(jsonData []byte) error {
+func (msg *eventMsg) UnmarshalJSON(jsonData []byte) error {
 	var data []interface{}
 	err := json.Unmarshal(jsonData, &data)
 	if err != nil {
@@ -397,8 +401,8 @@ func (msg *EventMsg) UnmarshalJSON(jsonData []byte) error {
 
 // Event returns a json encoded WAMP 'EVENT' message as a byte slice
 // event can be nil, a simple json type, or a complex json type
-func CreateEvent(topicURI string, event interface{}) (string, error) {
-	return createWAMPMessagePubSub(EVENT, topicURI, event)
+func createEvent(topicURI string, event interface{}) (string, error) {
+	return createWAMPMessagePubSub(msgEvent, topicURI, event)
 }
 
 // createWAMPMessagePubSub checks that the second argument (topicURI) is a valid
