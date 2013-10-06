@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"math/rand"
 )
 
@@ -42,7 +43,9 @@ func NewClient() *Client {
 //
 // Ref: http://wamp.ws/spec#prefix_message
 func (c *Client) Prefix(prefix, URI string) error {
-	log.Trace("sending prefix")
+	if debug {
+		log.Print("turnpike: sending prefix")
+	}
 	err := c.prefixes.registerPrefix(prefix, URI)
 	if err != nil {
 		return fmt.Errorf("turnpike: %s", err)
@@ -60,7 +63,9 @@ func (c *Client) Prefix(prefix, URI string) error {
 //
 // Ref: http://wamp.ws/spec#call_message
 func (c *Client) Call(procURI string, args ...interface{}) error {
-	log.Trace("sending call")
+	if debug {
+		log.Print("turnpike: sending call")
+	}
 	msg, err := createCall(newId(16), procURI, args...)
 	if err != nil {
 		return fmt.Errorf("turnpike: %s", err)
@@ -74,7 +79,9 @@ func (c *Client) Call(procURI string, args ...interface{}) error {
 //
 // Ref: http://wamp.ws/spec#subscribe_message
 func (c *Client) Subscribe(topicURI string) error {
-	log.Trace("sending subscribe")
+	if debug {
+		log.Print("turnpike: sending subscribe")
+	}
 	msg, err := createSubscribe(topicURI)
 	if err != nil {
 		return fmt.Errorf("turnpike: %s", err)
@@ -87,7 +94,9 @@ func (c *Client) Subscribe(topicURI string) error {
 //
 // Ref: http://wamp.ws/spec#unsubscribe_message
 func (c *Client) Unsubscribe(topicURI string) error {
-	log.Trace("sending unsubscribe")
+	if debug {
+		log.Print("turnpike: sending unsubscribe")
+	}
 	msg, err := createUnsubscribe(topicURI)
 	if err != nil {
 		return fmt.Errorf("turnpike: %s", err)
@@ -104,7 +113,9 @@ func (c *Client) Unsubscribe(topicURI string) error {
 //
 // Ref: http://wamp.ws/spec#publish_message
 func (c *Client) Publish(topicURI string, event interface{}, opts ...interface{}) error {
-	log.Trace("sending publish)")
+	if debug {
+		log.Print("turnpike: sending publish")
+	}
 	msg, err := createPublish(topicURI, event, opts...)
 	if err != nil {
 		return fmt.Errorf("turnpike: %s", err)
@@ -120,22 +131,30 @@ func (c *Client) PublishExcludeMe(topicURI string, event interface{}) error {
 }
 
 func (c *Client) handleCallResult(msg callResultMsg) {
-	log.Trace("Handling call result message")
+	if debug {
+		log.Print("turnpike: handling call result message")
+	}
 	// TODO:
 }
 
 func (c *Client) handleCallError(msg callErrorMsg) {
-	log.Trace("Handling call error message")
+	if debug {
+		log.Print("turnpike: handling call error message")
+	}
 	// TODO:
 }
 
 func (c *Client) handleEvent(msg eventMsg) {
-	log.Trace("Handling event message")
+	if debug {
+		log.Print("turnpike: handling event message")
+	}
 	// TODO:
 }
 
 func (c *Client) receiveWelcome() error {
-	log.Trace("Receive welcome")
+	if debug {
+		log.Print("turnpike: receive welcome")
+	}
 	var rec string
 	err := websocket.Message.Receive(c.ws, &rec)
 	if err != nil {
@@ -150,11 +169,13 @@ func (c *Client) receiveWelcome() error {
 		return fmt.Errorf("Error unmarshalling welcome message: %s", err)
 	}
 	c.SessionId = msg.SessionId
-	log.Debug("Session id: %s", c.SessionId)
 	c.ProtocolVersion = msg.ProtocolVersion
-	log.Debug("Protocol version: %d", c.ProtocolVersion)
 	c.ServerIdent = msg.ServerIdent
-	log.Debug("Server ident: %s", c.ServerIdent)
+	if debug {
+		log.Print("turnpike: session id: %s", c.SessionId)
+		log.Print("turnpike: protocol version: %d", c.ProtocolVersion)
+		log.Print("turnpike: server ident: %s", c.ServerIdent)
+	}
 
 	if c.sessionOpenCallback != nil {
 		c.sessionOpenCallback(c.SessionId)
@@ -169,11 +190,15 @@ func (c *Client) receive() {
 		err := websocket.Message.Receive(c.ws, &rec)
 		if err != nil {
 			if err != io.EOF {
-				log.Error("Error receiving message, aborting connection: %s", err)
+				if debug {
+					log.Printf("turnpike: error receiving message, aborting connection: %s", err)
+				}
 			}
 			break
 		}
-		log.Trace("Message received: %s", rec)
+		if debug {
+			log.Printf("turnpike: message received: %s", rec)
+		}
 
 		data := []byte(rec)
 
@@ -182,7 +207,9 @@ func (c *Client) receive() {
 			var msg callResultMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
-				log.Error("Error unmarshalling call result message: %s", err)
+				if debug {
+					log.Printf("turnpike: error unmarshalling call result message: %s", err)
+				}
 				continue
 			}
 			c.handleCallResult(msg)
@@ -190,7 +217,9 @@ func (c *Client) receive() {
 			var msg callErrorMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
-				log.Error("Error unmarshalling call error message: %s", err)
+				if debug {
+					log.Printf("turnpike: error unmarshalling call error message: %s", err)
+				}
 				continue
 			}
 			c.handleCallError(msg)
@@ -198,25 +227,37 @@ func (c *Client) receive() {
 			var msg eventMsg
 			err := json.Unmarshal(data, &msg)
 			if err != nil {
-				log.Error("Error unmarshalling event message: %s", err)
+				if debug {
+					log.Printf("turnpike: error unmarshalling event message: %s", err)
+				}
 				continue
 			}
 			c.handleEvent(msg)
 		case msgPrefix, msgCall, msgSubscribe, msgUnsubscribe, msgPublish:
-			log.Error("Client -> server message received, ignored: %s", messageTypeString(typ))
+			if debug {
+				log.Printf("turnpike: client -> server message received, ignored: %s", messageTypeString(typ))
+			}
 		case msgWelcome:
-			log.Error("Received extraneous welcome message, ignored")
+			if debug {
+				log.Print("turnpike: received extraneous welcome message, ignored")
+			}
 		default:
-			log.Error("Invalid message format, message dropped: %s", data)
+			if debug {
+				log.Printf("turnpike: invalid message format, message dropped: %s", data)
+			}
 		}
 	}
 }
 
 func (c *Client) send() {
 	for msg := range c.messages {
-		log.Trace("Sending message: %s", msg)
+		if debug {
+			log.Printf("turnpike: sending message: %s", msg)
+		}
 		if err := websocket.Message.Send(c.ws, msg); err != nil {
-			log.Error("Error sending message: %s", err)
+			if debug {
+				log.Printf("turnpike: error sending message: %s", err)
+			}
 		}
 	}
 }
@@ -224,7 +265,9 @@ func (c *Client) send() {
 // Connect will connect to server with an optional origin.
 // More details here: http://godoc.org/code.google.com/p/go.net/websocket#Dial
 func (c *Client) Connect(server, origin string) error {
-	log.Trace("connect")
+	if debug {
+		log.Print("turnpike: connect")
+	}
 	var err error
 	if c.ws, err = websocket.Dial(server, wampProtocolId, origin); err != nil {
 		return fmt.Errorf("Error connecting to websocket server: %s", err)
@@ -234,7 +277,9 @@ func (c *Client) Connect(server, origin string) error {
 	if err = c.receiveWelcome(); err != nil {
 		return err
 	}
-	log.Info("Connected to server: %s", server)
+	if debug {
+		log.Printf("turnpike: connected to server: %s", server)
+	}
 
 	go c.receive()
 	go c.send()
