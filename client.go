@@ -48,6 +48,7 @@ type Client struct {
 	ws                  *websocket.Conn
 	messages            chan string
 	prefixes            prefixMap
+	eventHandlers       map[string]EventHandler
 	calls               map[string]chan CallResult
 	sessionOpenCallback func(string)
 }
@@ -60,12 +61,17 @@ type CallResult struct {
 	Error RPCError
 }
 
+// EventHandler is an interface for handlers to published events. The topicURI
+// is the URI of the event and event is the event centents.
+type EventHandler func(topicURI string, event interface{})
+
 // NewClient creates a new WAMP client.
 func NewClient() *Client {
 	return &Client{
-		messages: make(chan string, clientBacklog),
-		prefixes: make(prefixMap),
-		calls:    make(map[string]chan CallResult),
+		messages:      make(chan string, clientBacklog),
+		prefixes:      make(prefixMap),
+		eventHandlers: make(map[string]EventHandler),
+		calls:         make(map[string]chan CallResult),
 	}
 }
 
@@ -115,7 +121,7 @@ func (c *Client) Call(procURI string, args ...interface{}) (chan CallResult, err
 // for the session or until Unsubscribe is called.
 //
 // Ref: http://wamp.ws/spec#subscribe_message
-func (c *Client) Subscribe(topicURI string) error {
+func (c *Client) Subscribe(topicURI string, f EventHandler) error {
 	if debug {
 		log.Print("turnpike: sending subscribe")
 	}
@@ -124,6 +130,9 @@ func (c *Client) Subscribe(topicURI string) error {
 		return fmt.Errorf("turnpike: %s", err)
 	}
 	c.messages <- string(msg)
+	if f != nil {
+		c.eventHandlers[topicURI] = f
+	}
 	return nil
 }
 
@@ -139,6 +148,7 @@ func (c *Client) Unsubscribe(topicURI string) error {
 		return fmt.Errorf("turnpike: %s", err)
 	}
 	c.messages <- string(msg)
+	delete(c.eventHandlers, topicURI)
 	return nil
 }
 
@@ -211,7 +221,13 @@ func (c *Client) handleEvent(msg eventMsg) {
 	if debug {
 		log.Print("turnpike: handling event message")
 	}
-	// TODO:
+	if f, ok := c.eventHandlers[msg.TopicURI]; ok && f != nil {
+		f(msg.TopicURI, msg.Event)
+	} else {
+		if debug {
+			log.Printf("turnpike: missing event handler for URI: %s", msg.TopicURI)
+		}
+	}
 }
 
 func (c *Client) receiveWelcome() error {
