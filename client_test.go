@@ -30,21 +30,12 @@ import (
 	"time"
 )
 
-func handleResult(client, uri string, args ...interface{}) (interface{}, error) {
-	return "ok", nil
-}
-
-func handleResultGenericError(client, uri string, args ...interface{}) (interface{}, error) {
-	return nil, errors.New("error")
-}
-
-func handleResultCustomError(client, uri string, args ...interface{}) (interface{}, error) {
-	return nil, RPCError{uri, "custom error", nil}
-}
-
 func TestClient_CallResult(t *testing.T) {
 	s := NewServer()
-	s.RegisterRPC("rpc:test_result", handleResult)
+	s.RegisterRPC("rpc:test_result",
+		func(client, uri string, args ...interface{}) (interface{}, error) {
+			return "ok", nil
+		})
 	http.Handle("/ws1", s.Handler)
 	// TODO: needs better way of running multiple listen and serve.
 	// Currently there is no way of closing the listener. A cusom server and
@@ -78,7 +69,10 @@ func TestClient_CallResult(t *testing.T) {
 
 func TestClient_CallRestultGenericError(t *testing.T) {
 	s := NewServer()
-	s.RegisterRPC("rpc:test_generic_error", handleResultGenericError)
+	s.RegisterRPC("rpc:test_generic_error",
+		func(client, uri string, args ...interface{}) (interface{}, error) {
+			return nil, errors.New("error")
+		})
 	http.Handle("/ws2", s.Handler)
 	go func() {
 		err := http.ListenAndServe(":8002", nil)
@@ -111,7 +105,10 @@ func TestClient_CallRestultGenericError(t *testing.T) {
 
 func TestClient_CallRestultCustomError(t *testing.T) {
 	s := NewServer()
-	s.RegisterRPC("rpc:test_custom_error", handleResultCustomError)
+	s.RegisterRPC("rpc:test_custom_error",
+		func(client, uri string, args ...interface{}) (interface{}, error) {
+			return nil, RPCError{uri, "custom error", nil}
+		})
 	http.Handle("/ws3", s.Handler)
 	go func() {
 		err := http.ListenAndServe(":8003", nil)
