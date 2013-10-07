@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"runtime"
 	"testing"
+	"time"
 )
 
 func handleResult(client, uri string, args ...interface{}) (interface{}, error) {
@@ -137,6 +138,43 @@ func TestClient_CallRestultCustomError(t *testing.T) {
 		t.Fail()
 	}
 	if r.Error.Error() != "turnpike: RPC error with URI rpc:test_custom_error: custom error" {
+		t.Fail()
+	}
+}
+
+func TestClient_Event(t *testing.T) {
+	s := NewServer()
+	http.Handle("/ws4", s.Handler)
+	// TODO: needs better way of running multiple listen and serve.
+	// Currently there is no way of closing the listener. A cusom server and
+	// handler will work but requires more work. TBD.
+	go func() {
+		err := http.ListenAndServe(":8004", nil)
+		if err != nil {
+			t.Fatal("ListenAndServe: " + err.Error())
+		}
+	}()
+
+	// Let the server goroutine start.
+	runtime.Gosched()
+
+	c := NewClient()
+	err := c.Connect("ws://127.0.0.1:8004/ws4", "http://localhost/")
+	if err != nil {
+		t.Fatal("error connecting: " + err.Error())
+	}
+
+	eventCh := make(chan bool)
+	c.Subscribe("event:test", func(uri string, event interface{}) {
+		eventCh <- true
+	})
+
+	c.Publish("event:test", "test")
+
+	select {
+	case <-eventCh:
+		return
+	case <-time.After(time.Second):
 		t.Fail()
 	}
 }
