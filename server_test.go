@@ -5,7 +5,6 @@
 package turnpike
 
 import (
-	"errors"
 	"net/http"
 	"runtime"
 	"testing"
@@ -15,12 +14,12 @@ import (
 func TestServer_SubNoHandler(t *testing.T) {
 	s := NewServer()
 
-	http.Handle("/ws1", s.Handler)
+	http.Handle("/ws_s1", s.Handler)
 	// TODO: needs better way of running multiple listen and serve.
 	// Currently there is no way of closing the listener. A cusom server and
 	// handler will work but requires more work. TBD.
 	go func() {
-		err := http.ListenAndServe(":8001", nil)
+		err := http.ListenAndServe(":8101", nil)
 		if err != nil {
 			t.Fatal("ListenAndServe: " + err.Error())
 		}
@@ -30,7 +29,7 @@ func TestServer_SubNoHandler(t *testing.T) {
 	runtime.Gosched()
 
 	c := NewClient()
-	err := c.Connect("ws://127.0.0.1:8001/ws1", "http://localhost/")
+	err := c.Connect("ws://127.0.0.1:8101/ws_s1", "http://localhost/")
 	if err != nil {
 		t.Fatal("error connecting: " + err.Error())
 	}
@@ -59,12 +58,12 @@ func TestServer_RegisterSubHandler(t *testing.T) {
 		return true
 	})
 
-	http.Handle("/ws2", s.Handler)
+	http.Handle("/ws_s2", s.Handler)
 	// TODO: needs better way of running multiple listen and serve.
 	// Currently there is no way of closing the listener. A cusom server and
 	// handler will work but requires more work. TBD.
 	go func() {
-		err := http.ListenAndServe(":8002", nil)
+		err := http.ListenAndServe(":8102", nil)
 		if err != nil {
 			t.Fatal("ListenAndServe: " + err.Error())
 		}
@@ -74,7 +73,7 @@ func TestServer_RegisterSubHandler(t *testing.T) {
 	runtime.Gosched()
 
 	c := NewClient()
-	err := c.Connect("ws://127.0.0.1:8002/ws2", "http://localhost/")
+	err := c.Connect("ws://127.0.0.1:8102/ws_s2", "http://localhost/")
 	if err != nil {
 		t.Fatal("error connecting: " + err.Error())
 	}
@@ -95,12 +94,12 @@ func TestServer_SubHandlerAccept(t *testing.T) {
 		return true
 	})
 
-	http.Handle("/ws3", s.Handler)
+	http.Handle("/ws_s3", s.Handler)
 	// TODO: needs better way of running multiple listen and serve.
 	// Currently there is no way of closing the listener. A cusom server and
 	// handler will work but requires more work. TBD.
 	go func() {
-		err := http.ListenAndServe(":8003", nil)
+		err := http.ListenAndServe(":8103", nil)
 		if err != nil {
 			t.Fatal("ListenAndServe: " + err.Error())
 		}
@@ -110,7 +109,7 @@ func TestServer_SubHandlerAccept(t *testing.T) {
 	runtime.Gosched()
 
 	c := NewClient()
-	err := c.Connect("ws://127.0.0.1:8003/ws3", "http://localhost/")
+	err := c.Connect("ws://127.0.0.1:8103/ws_s3", "http://localhost/")
 	if err != nil {
 		t.Fatal("error connecting: " + err.Error())
 	}
@@ -136,12 +135,12 @@ func TestServer_SubHandlerDeny(t *testing.T) {
 		return false
 	})
 
-	http.Handle("/ws4", s.Handler)
+	http.Handle("/ws_s4", s.Handler)
 	// TODO: needs better way of running multiple listen and serve.
 	// Currently there is no way of closing the listener. A cusom server and
 	// handler will work but requires more work. TBD.
 	go func() {
-		err := http.ListenAndServe(":8004", nil)
+		err := http.ListenAndServe(":8104", nil)
 		if err != nil {
 			t.Fatal("ListenAndServe: " + err.Error())
 		}
@@ -151,7 +150,7 @@ func TestServer_SubHandlerDeny(t *testing.T) {
 	runtime.Gosched()
 
 	c := NewClient()
-	err := c.Connect("ws://127.0.0.1:8004/ws4", "http://localhost/")
+	err := c.Connect("ws://127.0.0.1:8104/ws_s4", "http://localhost/")
 	if err != nil {
 		t.Fatal("error connecting: " + err.Error())
 	}
