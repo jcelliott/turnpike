@@ -67,7 +67,7 @@ type Server struct {
 	subscriptions map[string]listenerMap
 	//           client    prefixes
 	prefixes            map[string]prefixMap
-	rpcHooks            map[string]RPCHandler
+	rpcHandlers         map[string]RPCHandler
 	sessionOpenCallback func(string)
 	subLock             *sync.Mutex
 	websocket.Server
@@ -89,7 +89,7 @@ func NewServer() *Server {
 		clients:       make(map[string]chan string),
 		subscriptions: make(map[string]listenerMap),
 		prefixes:      make(map[string]prefixMap),
-		rpcHooks:      make(map[string]RPCHandler),
+		rpcHandlers:   make(map[string]RPCHandler),
 		subLock:       new(sync.Mutex),
 	}
 	s.Server = websocket.Server{
@@ -124,7 +124,7 @@ func (t *Server) handleCall(id string, msg callMsg) {
 	var out string
 	var err error
 
-	if f, ok := t.rpcHooks[msg.ProcURI]; ok && f != nil {
+	if f, ok := t.rpcHandlers[msg.ProcURI]; ok && f != nil {
 		var res interface{}
 		res, err = f(id, msg.ProcURI, msg.CallArgs...)
 		if err != nil {
@@ -431,13 +431,13 @@ func (t *Server) SetSessionOpenCallback(f func(string)) {
 // RegisterRPC adds a handler for the RPC named uri.
 func (t *Server) RegisterRPC(uri string, f RPCHandler) {
 	if f != nil {
-		t.rpcHooks[uri] = f
+		t.rpcHandlers[uri] = f
 	}
 }
 
 // UnregisterRPC removes a handler for the RPC named uri.
 func (t *Server) UnregisterRPC(uri string) {
-	delete(t.rpcHooks, uri)
+	delete(t.rpcHandlers, uri)
 }
 
 // SendEvent sends an event with topic directly (not via Client.Publish())
