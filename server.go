@@ -47,7 +47,7 @@ type Server struct {
 // all optional arguments to the RPC call. The return can be of any type that
 // can be marshaled to JSON, or a error (preferably RPCError but any error works.)
 // NOTE: this may be broken in v2 if multiple-return is implemented
-type RPCHandler func(callID string, topicURI string, args ...interface{}) (interface{}, error)
+type RPCHandler func(clientID string, topicURI string, args ...interface{}) (interface{}, error)
 
 // RPCError represents a call error and is the recommended way to return an
 // error from a RPC handler.
