@@ -400,13 +400,13 @@ func (t *Server) handleUnsubscribe(id string, msg unsubscribeMsg) {
 		log.Print("turnpike: handling unsubscribe message")
 	}
 	t.subLock.Lock()
-	topic := checkCurie(t.prefixes[id], msg.TopicURI)
-	if lm, ok := t.subscriptions[topic]; ok {
+	uri := checkCurie(t.prefixes[id], msg.TopicURI)
+	if lm, ok := t.subscriptions[uri]; ok {
 		lm.remove(id)
 	}
 	t.subLock.Unlock()
 	if debug {
-		log.Printf("turnpike: client %s unsubscribed from topic: %s", id, topic)
+		log.Printf("turnpike: client %s unsubscribed from topic: %s", id, uri)
 	}
 }
 
@@ -420,7 +420,7 @@ func (t *Server) handlePublish(id string, msg publishMsg) {
 		return
 	}
 
-	out, err := createEvent(topic, msg.Event)
+	out, err := createEvent(uri, event)
 	if err != nil {
 		if debug {
 			log.Printf("turnpike: error creating event message: %s", err)
