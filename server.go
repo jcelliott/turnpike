@@ -35,6 +35,8 @@ type Server struct {
 	prefixes map[string]prefixMap
 	// Proc URI -> handler
 	rpcHandlers map[string]RPCHandler
+	subHandlers map[string]SubHandler
+	pubHandlers map[string]PubHandler
 	// Topic URI -> subscribed clients
 	subscriptions       map[string]listenerMap
 	subLock             *sync.Mutex
@@ -62,13 +64,25 @@ func (e RPCError) Error() string {
 	return fmt.Sprintf("turnpike: RPC error with URI %s: %s", e.URI, e.Description)
 }
 
+// SubHandler is an interface that handlers for subscriptions should implement to
+// control with subscriptions are valid. A subscription is allowed by returning
+// true or denied by returning false.
+type SubHandler func(clientID string, topicURI string) bool
+
+// PubHandler is an interface that handlers for publishes should implement to
+// get notified on a client publish with the possibility to modify the event.
+// The event that will be published should be returned.
+type PubHandler func(topicURI string, event interface{}) interface{}
+
 // NewServer creates a new WAMP server.
 func NewServer() *Server {
 	s := &Server{
 		clients:       make(map[string]chan string),
-		subscriptions: make(map[string]listenerMap),
 		prefixes:      make(map[string]prefixMap),
 		rpcHandlers:   make(map[string]RPCHandler),
+		subHandlers:   make(map[string]SubHandler),
+		pubHandlers:   make(map[string]PubHandler),
+		subscriptions: make(map[string]listenerMap),
 		subLock:       new(sync.Mutex),
 	}
 	s.Server = websocket.Server{
@@ -94,6 +108,34 @@ func (t *Server) RegisterRPC(uri string, f RPCHandler) {
 // UnregisterRPC removes a handler for the RPC named uri.
 func (t *Server) UnregisterRPC(uri string) {
 	delete(t.rpcHandlers, uri)
+}
+
+// RegisterSubHandler adds a handler called when a client subscribes to URI.
+// The subscription can be canceled in the handler by returning false, or
+// approved by returning true.
+func (t *Server) RegisterSubHandler(uri string, f SubHandler) {
+	if f != nil {
+		t.subHandlers[uri] = f
+	}
+}
+
+// UnregisterSubHandler removes a subscription handler for the URI.
+func (t *Server) UnregisterSubHandler(uri string) {
+	delete(t.subHandlers, uri)
+}
+
+// RegisterPubHandler adds a handler called when a client publishes to URI.
+// The event can be modified in the handler and the returned event is what is
+// published to the other clients.
+func (t *Server) RegisterPubHandler(uri string, f PubHandler) {
+	if f != nil {
+		t.pubHandlers[uri] = f
+	}
+}
+
+// UnregisterPubHandler removes a publish handler for the URI.
+func (t *Server) UnregisterPubHandler(uri string) {
+	delete(t.pubHandlers, uri)
 }
 
 // SendEvent sends an event with topic directly (not via Client.Publish())
@@ -332,15 +374,24 @@ func (t *Server) handleSubscribe(id string, msg subscribeMsg) {
 	if debug {
 		log.Print("turnpike: handling subscribe message")
 	}
-	t.subLock.Lock()
-	topic := checkCurie(t.prefixes[id], msg.TopicURI)
-	if _, ok := t.subscriptions[topic]; !ok {
-		t.subscriptions[topic] = make(map[string]bool)
+
+	uri := checkCurie(t.prefixes[id], msg.TopicURI)
+	h := t.getSubHandler(uri)
+	if !h(id, uri) {
+		if debug {
+			log.Printf("turnpike: client %s denied subscription of topic: %s", id, uri)
+		}
+		return
 	}
-	t.subscriptions[topic].add(id)
-	t.subLock.Unlock()
+
+	t.subLock.Lock()
+	defer t.subLock.Unlock()
+	if _, ok := t.subscriptions[uri]; !ok {
+		t.subscriptions[uri] = make(map[string]bool)
+	}
+	t.subscriptions[uri].add(id)
 	if debug {
-		log.Printf("turnpike: client %s subscribed to topic: %s", id, topic)
+		log.Printf("turnpike: client %s subscribed to topic: %s", id, uri)
 	}
 }
 
@@ -425,6 +476,26 @@ func (t *Server) handlePublish(id string, msg publishMsg) {
 			client <- string(out)
 		}
 	}
+}
+
+func (t *Server) getSubHandler(uri string) SubHandler {
+	for i := len(uri); i >= 0; i-- {
+		u := uri[:i]
+		if h, ok := t.subHandlers[u]; ok {
+			return h
+		}
+	}
+	return nil
+}
+
+func (t *Server) getPubHandler(uri string) PubHandler {
+	for i := len(uri); i >= 0; i-- {
+		u := uri[:i]
+		if h, ok := t.pubHandlers[u]; ok {
+			return h
+		}
+	}
+	return nil
 }
 
 type listenerMap map[string]bool
