@@ -414,8 +414,15 @@ func (t *Server) handlePublish(id string, msg publishMsg) {
 	if debug {
 		log.Print("turnpike: handling publish message")
 	}
-	topic := checkCurie(t.prefixes[id], msg.TopicURI)
-	lm, ok := t.subscriptions[topic]
+	uri := checkCurie(t.prefixes[id], msg.TopicURI)
+
+	h := t.getPubHandler(uri)
+	event := msg.Event
+	if h != nil {
+		event = h(uri, event)
+	}
+
+	lm, ok := t.subscriptions[uri]
 	if !ok {
 		return
 	}
