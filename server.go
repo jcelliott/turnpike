@@ -377,7 +377,7 @@ func (t *Server) handleSubscribe(id string, msg subscribeMsg) {
 
 	uri := checkCurie(t.prefixes[id], msg.TopicURI)
 	h := t.getSubHandler(uri)
-	if !h(id, uri) {
+	if h != nil && !h(id, uri) {
 		if debug {
 			log.Printf("turnpike: client %s denied subscription of topic: %s", id, uri)
 		}
