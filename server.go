@@ -52,6 +52,9 @@ type Server struct {
 	prefixes map[string]PrefixMap
 	rpcHooks map[string]RPCHandler
 	subLock  *sync.Mutex
+
+	// array of connect and disconnect listeners
+	connListeners []func(bool, string, *websocket.Conn)
 }
 
 func NewServer() *Server {
@@ -60,7 +63,8 @@ func NewServer() *Server {
 		subscriptions: make(map[string]listenerMap),
 		prefixes:      make(map[string]PrefixMap),
 		rpcHooks:      make(map[string]RPCHandler),
-		subLock:       new(sync.Mutex)}
+		subLock:       new(sync.Mutex),
+		connListeners: make([]func(bool, string, *websocket.Conn), 0, 0)}
 }
 
 func (t *Server) handlePrefix(id string, msg PrefixMsg) {
@@ -231,6 +235,7 @@ func (t *Server) HandleWebsocket(conn *websocket.Conn) {
 
 	c := make(chan string, serverBacklog)
 	t.clients[id] = c
+	t.fireConnEvent(true, id, conn)
 
 	failures := 0
 	go func() {
@@ -317,6 +322,7 @@ func (t *Server) HandleWebsocket(conn *websocket.Conn) {
 	}
 
 	delete(t.clients, id)
+	t.fireConnEvent(false, id, conn)
 	close(c)
 }
 
@@ -335,4 +341,14 @@ func (t *Server) SendEvent(topic string, event interface{}) {
 		TopicURI: topic,
 		Event:    event,
 	})
+}
+
+func (t *Server) RegisterConnListener(listener func(bool, string, *websocket.Conn)) {
+	t.connListeners = append(t.connListeners, listener)
+}
+
+func (t *Server) fireConnEvent(connected bool, sessionId string, conn *websocket.Conn) {
+	for _, l := range t.connListeners {
+		l(connected, sessionId, conn)
+	}
 }
