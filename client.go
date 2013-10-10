@@ -40,7 +40,7 @@ type CallResult struct {
 	// Result contains the RPC call result returned by the server.
 	Result interface{}
 	// Error is nil on call success otherwise it contains the RPC error.
-	Error RPCError
+	Error error
 }
 
 // EventHandler is an interface for handlers to published events. The topicURI
@@ -83,20 +83,25 @@ func (c *Client) Prefix(prefix, URI string) error {
 // the call result (or error) on completion.
 //
 // Ref: http://wamp.ws/spec#call_message
-func (c *Client) Call(procURI string, args ...interface{}) (chan CallResult, error) {
+func (c *Client) Call(procURI string, args ...interface{}) chan CallResult {
 	if debug {
 		log.Print("turnpike: sending call")
 	}
+	// Channel size must be 1 to avoid blocking if no one is receiving the channel later.
+	resultCh := make(chan CallResult, 1)
 	callId := newId(16)
 	msg, err := createCall(callId, procURI, args...)
 	if err != nil {
-		return nil, fmt.Errorf("turnpike: %s", err)
+		r := CallResult{
+			Result: nil,
+			Error:  fmt.Errorf("turnpike: %s", err),
+		}
+		resultCh <- r
+		return resultCh
 	}
-	c.messages <- string(msg)
-	// Channel size must be 1 to avoid blocking if no one is receiving the channel later.
-	resultCh := make(chan CallResult, 1)
 	c.calls[callId] = resultCh
-	return resultCh, nil
+	c.messages <- string(msg)
+	return resultCh
 }
 
 // Subscribe adds a subscription at the server for events with topicURI lasting
@@ -173,6 +178,7 @@ func (c *Client) handleCallResult(msg callResultMsg) {
 	delete(c.calls, msg.CallID)
 	r := CallResult{
 		Result: msg.Result,
+		Error:  nil,
 	}
 	resultCh <- r
 }

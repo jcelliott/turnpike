@@ -38,12 +38,11 @@ func TestClient_CallResult(t *testing.T) {
 		t.Fatal("error connecting: " + err.Error())
 	}
 
-	resultCh, err := c.Call("rpc:test_result")
-	if err != nil {
-		t.Error(err)
-	}
-
+	resultCh := c.Call("rpc:test_result")
 	r := <-resultCh
+	if r.Error != nil {
+		t.Error(r.Error)
+	}
 	if r.Result != "ok" {
 		t.Fail()
 	}
@@ -71,11 +70,7 @@ func TestClient_CallRestultGenericError(t *testing.T) {
 		t.Fatal("error connecting: " + err.Error())
 	}
 
-	resultCh, err := c.Call("rpc:test_generic_error")
-	if err != nil {
-		t.Error(err)
-	}
-
+	resultCh := c.Call("rpc:test_generic_error")
 	r := <-resultCh
 	if r.Result != nil {
 		t.Fail()
@@ -107,11 +102,7 @@ func TestClient_CallRestultCustomError(t *testing.T) {
 		t.Fatal("error connecting: " + err.Error())
 	}
 
-	resultCh, err := c.Call("rpc:test_custom_error")
-	if err != nil {
-		t.Error(err)
-	}
-
+	resultCh := c.Call("rpc:test_custom_error")
 	r := <-resultCh
 	if r.Result != nil {
 		t.Fail()
