@@ -18,6 +18,7 @@ import (
 )
 
 var (
+	// The amount of messages to buffer before sending to client.
 	serverBacklog = 20
 )
 
@@ -25,6 +26,30 @@ const (
 	clientConnTimeout = 6
 	clientMaxFailures = 3
 )
+
+// Server represents a WAMP server that handles RPC and pub/sub.
+type Server struct {
+	// Client ID -> send channel
+	clients map[string]chan string
+	// Client ID -> prefix mapping
+	prefixes map[string]prefixMap
+	// Proc URI -> handler
+	rpcHandlers map[string]RPCHandler
+	subHandlers map[string]SubHandler
+	pubHandlers map[string]PubHandler
+	// Topic URI -> subscribed clients
+	subscriptions       map[string]listenerMap
+	subLock             *sync.Mutex
+	sessionOpenCallback func(string)
+	websocket.Server
+}
+
+// RPCHandler is an interface that handlers to RPC calls should implement.
+// The first parameter is the call ID, the second is the proc URI. Last comes
+// all optional arguments to the RPC call. The return can be of any type that
+// can be marshaled to JSON, or a error (preferably RPCError but any error works.)
+// NOTE: this may be broken in v2 if multiple-return is implemented
+type RPCHandler func(clientID string, topicURI string, args ...interface{}) (interface{}, error)
 
 // RPCError represents a call error and is the recommended way to return an
 // error from a RPC handler.
@@ -39,57 +64,25 @@ func (e RPCError) Error() string {
 	return fmt.Sprintf("turnpike: RPC error with URI %s: %s", e.URI, e.Description)
 }
 
-type listenerMap map[string]bool
+// SubHandler is an interface that handlers for subscriptions should implement to
+// control with subscriptions are valid. A subscription is allowed by returning
+// true or denied by returning false.
+type SubHandler func(clientID string, topicURI string) bool
 
-func (lm listenerMap) add(id string) {
-	lm[id] = true
-}
-func (lm listenerMap) contains(id string) bool {
-	return lm[id]
-}
-func (lm listenerMap) remove(id string) {
-	delete(lm, id)
-}
-
-// RPCHandler is an interface for that handlers to RPC calls should implement.
-// The first parameter is the call ID, the second is the proc URI. Last comes
-// all optional arguments to the RPC call. The return can be of any type that
-// can be marshaled to JSON, or a error (preferably RPCError but any error works.)
-// NOTE: this may be broken in v2 if multiple-return is implemented
-type RPCHandler func(string, string, ...interface{}) (interface{}, error)
-
-// Server represents a WAMP server that handles RPC and pub/sub.
-type Server struct {
-	clients map[string]chan string
-	// this is a map because it cheaply prevents a client from subscribing multiple times
-	// the nice side-effect here is it's easy to unsubscribe
-	//               topicID  clients
-	subscriptions map[string]listenerMap
-	//           client    prefixes
-	prefixes            map[string]prefixMap
-	rpcHooks            map[string]RPCHandler
-	sessionOpenCallback func(string)
-	subLock             *sync.Mutex
-	websocket.Server
-}
-
-func checkWAMPHandshake(config *websocket.Config, req *http.Request) error {
-	for _, protocol := range config.Protocol {
-		if protocol == "wamp" {
-			config.Protocol = []string{protocol}
-			return nil
-		}
-	}
-	return websocket.ErrBadWebSocketProtocol
-}
+// PubHandler is an interface that handlers for publishes should implement to
+// get notified on a client publish with the possibility to modify the event.
+// The event that will be published should be returned.
+type PubHandler func(topicURI string, event interface{}) interface{}
 
 // NewServer creates a new WAMP server.
 func NewServer() *Server {
 	s := &Server{
 		clients:       make(map[string]chan string),
-		subscriptions: make(map[string]listenerMap),
 		prefixes:      make(map[string]prefixMap),
-		rpcHooks:      make(map[string]RPCHandler),
+		rpcHandlers:   make(map[string]RPCHandler),
+		subHandlers:   make(map[string]SubHandler),
+		pubHandlers:   make(map[string]PubHandler),
+		subscriptions: make(map[string]listenerMap),
 		subLock:       new(sync.Mutex),
 	}
 	s.Server = websocket.Server{
@@ -99,170 +92,58 @@ func NewServer() *Server {
 	return s
 }
 
-func (t *Server) handlePrefix(id string, msg prefixMsg) {
-	if debug {
-		log.Print("turnpike: handling prefix message")
-	}
-	if _, ok := t.prefixes[id]; !ok {
-		t.prefixes[id] = make(prefixMap)
-	}
-	if err := t.prefixes[id].registerPrefix(msg.Prefix, msg.URI); err != nil {
-		if debug {
-			log.Printf("turnpike: error registering prefix: %s", err)
-		}
-	}
-	if debug {
-		log.Printf("turnpike: client %s registered prefix '%s' for URI: %s", id, msg.Prefix, msg.URI)
+// SetSessionOpenCallback adds a callback function that is run when a new session begins.
+// The callback function must accept a string argument that is the session ID.
+func (t *Server) SetSessionOpenCallback(f func(string)) {
+	t.sessionOpenCallback = f
+}
+
+// RegisterRPC adds a handler for the RPC named uri.
+func (t *Server) RegisterRPC(uri string, f RPCHandler) {
+	if f != nil {
+		t.rpcHandlers[uri] = f
 	}
 }
 
-func (t *Server) handleCall(id string, msg callMsg) {
-	if debug {
-		log.Print("turnpike: handling call message")
-	}
+// UnregisterRPC removes a handler for the RPC named uri.
+func (t *Server) UnregisterRPC(uri string) {
+	delete(t.rpcHandlers, uri)
+}
 
-	var out string
-	var err error
-
-	if f, ok := t.rpcHooks[msg.ProcURI]; ok && f != nil {
-		var res interface{}
-		res, err = f(id, msg.ProcURI, msg.CallArgs...)
-		if err != nil {
-			var errorURI, desc string
-			var details interface{}
-			if er, ok := err.(RPCError); ok {
-				errorURI = er.URI
-				desc = er.Description
-				details = er.Details
-			} else {
-				errorURI = msg.ProcURI + "#generic-error"
-				desc = err.Error()
-			}
-
-			if details != nil {
-				out, err = createCallError(msg.CallID, errorURI, desc, details)
-			} else {
-				out, err = createCallError(msg.CallID, errorURI, desc)
-			}
-		} else {
-			out, err = createCallResult(msg.CallID, res)
-		}
-	} else {
-		if debug {
-			log.Printf("turnpike: RPC call not registered: %s", msg.ProcURI)
-		}
-		out, err = createCallError(msg.CallID, "error:notimplemented", "RPC call '%s' not implemented", msg.ProcURI)
-	}
-
-	if err != nil {
-		// whatever, let the client hang...
-		if debug {
-			log.Printf("turnpike: error creating callError message: %s", err)
-		}
-		return
-	}
-	if client, ok := t.clients[id]; ok {
-		client <- out
+// RegisterSubHandler adds a handler called when a client subscribes to URI.
+// The subscription can be canceled in the handler by returning false, or
+// approved by returning true.
+func (t *Server) RegisterSubHandler(uri string, f SubHandler) {
+	if f != nil {
+		t.subHandlers[uri] = f
 	}
 }
 
-func (t *Server) handleSubscribe(id string, msg subscribeMsg) {
-	if debug {
-		log.Print("turnpike: handling subscribe message")
-	}
-	t.subLock.Lock()
-	topic := checkCurie(t.prefixes[id], msg.TopicURI)
-	if _, ok := t.subscriptions[topic]; !ok {
-		t.subscriptions[topic] = make(map[string]bool)
-	}
-	t.subscriptions[topic].add(id)
-	t.subLock.Unlock()
-	if debug {
-		log.Printf("turnpike: client %s subscribed to topic: %s", id, topic)
+// UnregisterSubHandler removes a subscription handler for the URI.
+func (t *Server) UnregisterSubHandler(uri string) {
+	delete(t.subHandlers, uri)
+}
+
+// RegisterPubHandler adds a handler called when a client publishes to URI.
+// The event can be modified in the handler and the returned event is what is
+// published to the other clients.
+func (t *Server) RegisterPubHandler(uri string, f PubHandler) {
+	if f != nil {
+		t.pubHandlers[uri] = f
 	}
 }
 
-func (t *Server) handleUnsubscribe(id string, msg unsubscribeMsg) {
-	if debug {
-		log.Print("turnpike: handling unsubscribe message")
-	}
-	t.subLock.Lock()
-	topic := checkCurie(t.prefixes[id], msg.TopicURI)
-	if lm, ok := t.subscriptions[topic]; ok {
-		lm.remove(id)
-	}
-	t.subLock.Unlock()
-	if debug {
-		log.Printf("turnpike: client %s unsubscribed from topic: %s", id, topic)
-	}
+// UnregisterPubHandler removes a publish handler for the URI.
+func (t *Server) UnregisterPubHandler(uri string) {
+	delete(t.pubHandlers, uri)
 }
 
-func (t *Server) handlePublish(id string, msg publishMsg) {
-	if debug {
-		log.Print("turnpike: handling publish message")
-	}
-	topic := checkCurie(t.prefixes[id], msg.TopicURI)
-	lm, ok := t.subscriptions[topic]
-	if !ok {
-		return
-	}
-
-	out, err := createEvent(topic, msg.Event)
-	if err != nil {
-		if debug {
-			log.Printf("turnpike: error creating event message: %s", err)
-		}
-		return
-	}
-
-	var sendTo []string
-	if len(msg.ExcludeList) > 0 || len(msg.EligibleList) > 0 {
-		// this is super ugly, but I couldn't think of a better way...
-		for tid := range lm {
-			include := true
-			for _, _tid := range msg.ExcludeList {
-				if tid == _tid {
-					include = false
-					break
-				}
-			}
-			if include {
-				sendTo = append(sendTo, tid)
-			}
-		}
-
-		for _, tid := range msg.EligibleList {
-			include := true
-			for _, _tid := range sendTo {
-				if _tid == tid {
-					include = false
-					break
-				}
-			}
-			if include {
-				sendTo = append(sendTo, tid)
-			}
-		}
-	} else {
-		for tid := range lm {
-			if tid == id && msg.ExcludeMe {
-				continue
-			}
-			sendTo = append(sendTo, tid)
-		}
-	}
-
-	for _, tid := range sendTo {
-		// we're not locking anything, so we need
-		// to make sure the client didn't disconnecct in the
-		// last few nanoseconds...
-		if client, ok := t.clients[tid]; ok {
-			if len(client) == cap(client) {
-				<-client
-			}
-			client <- string(out)
-		}
-	}
+// SendEvent sends an event with topic directly (not via Client.Publish())
+func (t *Server) SendEvent(topic string, event interface{}) {
+	t.handlePublish(topic, publishMsg{
+		TopicURI: topic,
+		Event:    event,
+	})
 }
 
 // HandleWebsocket implements the go.net/websocket.Handler interface.
@@ -422,28 +303,226 @@ func (t *Server) HandleWebsocket(conn *websocket.Conn) {
 	close(c)
 }
 
-// SetSessionOpenCallback adds a callback function that is run when a new session begins.
-// The callback function must accept a string argument that is the session ID.
-func (t *Server) SetSessionOpenCallback(f func(string)) {
-	t.sessionOpenCallback = f
-}
-
-// RegisterRPC adds a handler for the RPC named uri.
-func (t *Server) RegisterRPC(uri string, f RPCHandler) {
-	if f != nil {
-		t.rpcHooks[uri] = f
+func (t *Server) handlePrefix(id string, msg prefixMsg) {
+	if debug {
+		log.Print("turnpike: handling prefix message")
+	}
+	if _, ok := t.prefixes[id]; !ok {
+		t.prefixes[id] = make(prefixMap)
+	}
+	if err := t.prefixes[id].registerPrefix(msg.Prefix, msg.URI); err != nil {
+		if debug {
+			log.Printf("turnpike: error registering prefix: %s", err)
+		}
+	}
+	if debug {
+		log.Printf("turnpike: client %s registered prefix '%s' for URI: %s", id, msg.Prefix, msg.URI)
 	}
 }
 
-// UnregisterRPC removes a handler for the RPC named uri.
-func (t *Server) UnregisterRPC(uri string) {
-	delete(t.rpcHooks, uri)
+func (t *Server) handleCall(id string, msg callMsg) {
+	if debug {
+		log.Print("turnpike: handling call message")
+	}
+
+	var out string
+	var err error
+
+	if f, ok := t.rpcHandlers[msg.ProcURI]; ok && f != nil {
+		var res interface{}
+		res, err = f(id, msg.ProcURI, msg.CallArgs...)
+		if err != nil {
+			var errorURI, desc string
+			var details interface{}
+			if er, ok := err.(RPCError); ok {
+				errorURI = er.URI
+				desc = er.Description
+				details = er.Details
+			} else {
+				errorURI = msg.ProcURI + "#generic-error"
+				desc = err.Error()
+			}
+
+			if details != nil {
+				out, err = createCallError(msg.CallID, errorURI, desc, details)
+			} else {
+				out, err = createCallError(msg.CallID, errorURI, desc)
+			}
+		} else {
+			out, err = createCallResult(msg.CallID, res)
+		}
+	} else {
+		if debug {
+			log.Printf("turnpike: RPC call not registered: %s", msg.ProcURI)
+		}
+		out, err = createCallError(msg.CallID, "error:notimplemented", "RPC call '%s' not implemented", msg.ProcURI)
+	}
+
+	if err != nil {
+		// whatever, let the client hang...
+		if debug {
+			log.Printf("turnpike: error creating callError message: %s", err)
+		}
+		return
+	}
+	if client, ok := t.clients[id]; ok {
+		client <- out
+	}
 }
 
-// SendEvent sends an event with topic directly (not via Client.Publish())
-func (t *Server) SendEvent(topic string, event interface{}) {
-	t.handlePublish(topic, publishMsg{
-		TopicURI: topic,
-		Event:    event,
-	})
+func (t *Server) handleSubscribe(id string, msg subscribeMsg) {
+	if debug {
+		log.Print("turnpike: handling subscribe message")
+	}
+
+	uri := checkCurie(t.prefixes[id], msg.TopicURI)
+	h := t.getSubHandler(uri)
+	if h != nil && !h(id, uri) {
+		if debug {
+			log.Printf("turnpike: client %s denied subscription of topic: %s", id, uri)
+		}
+		return
+	}
+
+	t.subLock.Lock()
+	defer t.subLock.Unlock()
+	if _, ok := t.subscriptions[uri]; !ok {
+		t.subscriptions[uri] = make(map[string]bool)
+	}
+	t.subscriptions[uri].add(id)
+	if debug {
+		log.Printf("turnpike: client %s subscribed to topic: %s", id, uri)
+	}
+}
+
+func (t *Server) handleUnsubscribe(id string, msg unsubscribeMsg) {
+	if debug {
+		log.Print("turnpike: handling unsubscribe message")
+	}
+	t.subLock.Lock()
+	uri := checkCurie(t.prefixes[id], msg.TopicURI)
+	if lm, ok := t.subscriptions[uri]; ok {
+		lm.remove(id)
+	}
+	t.subLock.Unlock()
+	if debug {
+		log.Printf("turnpike: client %s unsubscribed from topic: %s", id, uri)
+	}
+}
+
+func (t *Server) handlePublish(id string, msg publishMsg) {
+	if debug {
+		log.Print("turnpike: handling publish message")
+	}
+	uri := checkCurie(t.prefixes[id], msg.TopicURI)
+
+	h := t.getPubHandler(uri)
+	event := msg.Event
+	if h != nil {
+		event = h(uri, event)
+	}
+
+	lm, ok := t.subscriptions[uri]
+	if !ok {
+		return
+	}
+
+	out, err := createEvent(uri, event)
+	if err != nil {
+		if debug {
+			log.Printf("turnpike: error creating event message: %s", err)
+		}
+		return
+	}
+
+	var sendTo []string
+	if len(msg.ExcludeList) > 0 || len(msg.EligibleList) > 0 {
+		// this is super ugly, but I couldn't think of a better way...
+		for tid := range lm {
+			include := true
+			for _, _tid := range msg.ExcludeList {
+				if tid == _tid {
+					include = false
+					break
+				}
+			}
+			if include {
+				sendTo = append(sendTo, tid)
+			}
+		}
+
+		for _, tid := range msg.EligibleList {
+			include := true
+			for _, _tid := range sendTo {
+				if _tid == tid {
+					include = false
+					break
+				}
+			}
+			if include {
+				sendTo = append(sendTo, tid)
+			}
+		}
+	} else {
+		for tid := range lm {
+			if tid == id && msg.ExcludeMe {
+				continue
+			}
+			sendTo = append(sendTo, tid)
+		}
+	}
+
+	for _, tid := range sendTo {
+		// we're not locking anything, so we need
+		// to make sure the client didn't disconnecct in the
+		// last few nanoseconds...
+		if client, ok := t.clients[tid]; ok {
+			if len(client) == cap(client) {
+				<-client
+			}
+			client <- string(out)
+		}
+	}
+}
+
+func (t *Server) getSubHandler(uri string) SubHandler {
+	for i := len(uri); i >= 0; i-- {
+		u := uri[:i]
+		if h, ok := t.subHandlers[u]; ok {
+			return h
+		}
+	}
+	return nil
+}
+
+func (t *Server) getPubHandler(uri string) PubHandler {
+	for i := len(uri); i >= 0; i-- {
+		u := uri[:i]
+		if h, ok := t.pubHandlers[u]; ok {
+			return h
+		}
+	}
+	return nil
+}
+
+type listenerMap map[string]bool
+
+func (lm listenerMap) add(id string) {
+	lm[id] = true
+}
+func (lm listenerMap) contains(id string) bool {
+	return lm[id]
+}
+func (lm listenerMap) remove(id string) {
+	delete(lm, id)
+}
+
+func checkWAMPHandshake(config *websocket.Config, req *http.Request) error {
+	for _, protocol := range config.Protocol {
+		if protocol == "wamp" {
+			config.Protocol = []string{protocol}
+			return nil
+		}
+	}
+	return websocket.ErrBadWebSocketProtocol
 }
