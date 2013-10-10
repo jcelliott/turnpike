@@ -30,6 +30,7 @@ type Client struct {
 	ws                  *websocket.Conn
 	messages            chan string
 	prefixes            prefixMap
+	eventHandlers       map[string]EventHandler
 	calls               map[string]chan CallResult
 	sessionOpenCallback func(string)
 }
@@ -39,15 +40,20 @@ type CallResult struct {
 	// Result contains the RPC call result returned by the server.
 	Result interface{}
 	// Error is nil on call success otherwise it contains the RPC error.
-	Error RPCError
+	Error error
 }
+
+// EventHandler is an interface for handlers to published events. The topicURI
+// is the URI of the event and event is the event centents.
+type EventHandler func(topicURI string, event interface{})
 
 // NewClient creates a new WAMP client.
 func NewClient() *Client {
 	return &Client{
-		messages: make(chan string, clientBacklog),
-		prefixes: make(prefixMap),
-		calls:    make(map[string]chan CallResult),
+		messages:      make(chan string, clientBacklog),
+		prefixes:      make(prefixMap),
+		eventHandlers: make(map[string]EventHandler),
+		calls:         make(map[string]chan CallResult),
 	}
 }
 
@@ -77,27 +83,32 @@ func (c *Client) Prefix(prefix, URI string) error {
 // the call result (or error) on completion.
 //
 // Ref: http://wamp.ws/spec#call_message
-func (c *Client) Call(procURI string, args ...interface{}) (chan CallResult, error) {
+func (c *Client) Call(procURI string, args ...interface{}) chan CallResult {
 	if debug {
 		log.Print("turnpike: sending call")
 	}
+	// Channel size must be 1 to avoid blocking if no one is receiving the channel later.
+	resultCh := make(chan CallResult, 1)
 	callId := newId(16)
 	msg, err := createCall(callId, procURI, args...)
 	if err != nil {
-		return nil, fmt.Errorf("turnpike: %s", err)
+		r := CallResult{
+			Result: nil,
+			Error:  fmt.Errorf("turnpike: %s", err),
+		}
+		resultCh <- r
+		return resultCh
 	}
-	c.messages <- string(msg)
-	// Channel size must be 1 to avoid blocking if no one is receiving the channel later.
-	resultCh := make(chan CallResult, 1)
 	c.calls[callId] = resultCh
-	return resultCh, nil
+	c.messages <- string(msg)
+	return resultCh
 }
 
 // Subscribe adds a subscription at the server for events with topicURI lasting
 // for the session or until Unsubscribe is called.
 //
 // Ref: http://wamp.ws/spec#subscribe_message
-func (c *Client) Subscribe(topicURI string) error {
+func (c *Client) Subscribe(topicURI string, f EventHandler) error {
 	if debug {
 		log.Print("turnpike: sending subscribe")
 	}
@@ -106,6 +117,9 @@ func (c *Client) Subscribe(topicURI string) error {
 		return fmt.Errorf("turnpike: %s", err)
 	}
 	c.messages <- string(msg)
+	if f != nil {
+		c.eventHandlers[topicURI] = f
+	}
 	return nil
 }
 
@@ -121,6 +135,7 @@ func (c *Client) Unsubscribe(topicURI string) error {
 		return fmt.Errorf("turnpike: %s", err)
 	}
 	c.messages <- string(msg)
+	delete(c.eventHandlers, topicURI)
 	return nil
 }
 
@@ -163,6 +178,7 @@ func (c *Client) handleCallResult(msg callResultMsg) {
 	delete(c.calls, msg.CallID)
 	r := CallResult{
 		Result: msg.Result,
+		Error:  nil,
 	}
 	resultCh <- r
 }
@@ -193,7 +209,13 @@ func (c *Client) handleEvent(msg eventMsg) {
 	if debug {
 		log.Print("turnpike: handling event message")
 	}
-	// TODO:
+	if f, ok := c.eventHandlers[msg.TopicURI]; ok && f != nil {
+		f(msg.TopicURI, msg.Event)
+	} else {
+		if debug {
+			log.Printf("turnpike: missing event handler for URI: %s", msg.TopicURI)
+		}
+	}
 }
 
 func (c *Client) receiveWelcome() error {
