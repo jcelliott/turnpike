@@ -1,5 +1,6 @@
 package wampv2
 
+// Message is a generic container for a WAMP message.
 type Message interface {
 	MessageType() MessageType
 }
@@ -126,7 +127,7 @@ func (msg *Welcome) MessageType() MessageType {
 // [ABORT, Details|dict, Reason|uri]
 type Abort struct {
 	Details map[string]interface{}
-	Reason URI
+	Reason  URI
 }
 
 func (msg *Abort) MessageType() MessageType {
@@ -168,7 +169,7 @@ func (msg *Goodbye) MessageType() MessageType {
 type Heartbeat struct {
 	IncomingSeq uint
 	OutgoingSeq uint
-	Discard     string `json:"omitempty"`
+	Discard     string
 }
 
 func (msg *Heartbeat) MessageType() MessageType {
@@ -179,12 +180,12 @@ func (msg *Heartbeat) MessageType() MessageType {
 // [ERROR, REQUEST.Type|int, REQUEST.Request|id, Details|dict, Error|uri, Arguments|list]
 // [ERROR, REQUEST.Type|int, REQUEST.Request|id, Details|dict, Error|uri, Arguments|list, ArgumentsKw|dict]
 type Error struct {
-	Type        uint
+	Type        MessageType
 	Request     ID
 	Details     map[string]interface{}
 	Error       URI
-	Arguments   []interface{}          `json:"omitempty"`
-	ArgumentsKw map[string]interface{} `json:"omitempty"`
+	Arguments   []interface{}
+	ArgumentsKw map[string]interface{}
 }
 
 func (msg *Error) MessageType() MessageType {
@@ -198,8 +199,8 @@ type Publish struct {
 	Request     ID
 	Options     map[string]interface{}
 	Topic       URI
-	Arguments   []interface{}          `json:"omitempty"`
-	ArgumentsKw map[string]interface{} `json:"omitempty"`
+	Arguments   []interface{}
+	ArgumentsKw map[string]interface{}
 }
 
 func (msg *Publish) MessageType() MessageType {
