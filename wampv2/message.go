@@ -7,6 +7,68 @@ type Message interface {
 
 type MessageType int
 
+func (mt MessageType) New() Message {
+	switch mt {
+	case HELLO:
+		return new(Hello)
+	case WELCOME:
+		return new(Welcome)
+	case ABORT:
+		return new(Abort)
+	case CHALLENGE:
+		return new(Challenge)
+	case AUTHENTICATE:
+		return new(Authenticate)
+	case GOODBYE:
+		return new(Goodbye)
+	case HEARTBEAT:
+		return new(Heartbeat)
+	case ERROR:
+		return new(Error)
+
+	case PUBLISH:
+		return new(Publish)
+	case PUBLISHED:
+		return new(Published)
+
+	case SUBSCRIBE:
+		return new(Subscribe)
+	case SUBSCRIBED:
+		return new(Subscribed)
+	case UNSUBSCRIBE:
+		return new(Unsubscribe)
+	case UNSUBSCRIBED:
+		return new(Unsubscribed)
+	case EVENT:
+		return new(Event)
+
+	case CALL:
+		return new(Call)
+	case CANCEL:
+		return new(Cancel)
+	case RESULT:
+		return new(Result)
+
+	case REGISTER:
+		return new(Register)
+	case REGISTERED:
+		return new(Registered)
+	case UNREGISTER:
+		return new(Unregister)
+	case UNREGISTERED:
+		return new(Unregistered)
+	case INVOCATION:
+		return new(Invocation)
+	case INTERRUPT:
+		return new(Interrupt)
+	case YIELD:
+		return new(Yield)
+	default:
+		// TODO: allow custom message types?
+		return nil
+	}
+}
+
 func (mt MessageType) String() string {
 	switch mt {
 	case HELLO:
