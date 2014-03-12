@@ -17,6 +17,9 @@ type JSONSerializer struct {
 func (s *JSONSerializer) Serialize(msg Message) ([]byte, error) {
 	arr := []interface{}{int(msg.MessageType())}
 	val := reflect.ValueOf(msg)
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem()
+	}
 	for i := 0; i < val.NumField(); i++ {
 		arr = append(arr, val.Field(i).Interface())
 	}
@@ -46,6 +49,9 @@ func (s *JSONSerializer) Deserialize(data []byte) (Message, error) {
 	}
 	for i := 0; i < val.NumField() && i < len(arr)-1; i++ {
 		f := val.Field(i)
+		if arr[i+1] == nil {
+			continue
+		}
 		arg := reflect.ValueOf(arr[i+1])
 		if arg.Kind() == reflect.Ptr {
 			arg = arg.Elem()
