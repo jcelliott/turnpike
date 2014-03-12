@@ -6,55 +6,51 @@ import "time"
 const test_realm = URI("test.realm")
 
 type basicEndpoint struct {
-	outgoing chan Message
-	incoming chan Message
+	*localEndpoint
 }
 
 func (ep *basicEndpoint) Receive() <-chan Message {
-	return ep.outgoing
+	return ep.incoming
 }
 func (ep *basicEndpoint) Send(msg Message) error {
 	if msg.MessageType() == GOODBYE {
-		ep.outgoing <- &Goodbye{}
+		ep.localEndpoint.Send(&Goodbye{})
 	}
-	ep.incoming <- msg
-	return nil
+	return ep.localEndpoint.Send(msg)
 }
 
 // satisfy ErrorHandler
 func (ep *basicEndpoint) SendError(msg *Error) {
-	ep.incoming <- msg
+	ep.Send(msg)
 }
 
 // satisfy Publisher
 func (ep *basicEndpoint) SendPublished(msg *Published) {
-	ep.incoming <- msg
+	ep.Send(msg)
 }
 
 // satisfy Subscriber
 func (ep *basicEndpoint) SendEvent(msg *Event) {
-	ep.incoming <- msg
+	ep.Send(msg)
 }
 func (ep *basicEndpoint) SendUnsubscribed(msg *Unsubscribed) {
-	ep.incoming <- msg
+	ep.Send(msg)
 }
 func (ep *basicEndpoint) SendSubscribed(msg *Subscribed) {
-	ep.incoming <- msg
+	ep.Send(msg)
 }
 
 func (ep *basicEndpoint) Close() error {
 	close(ep.outgoing)
-	close(ep.incoming)
 	return nil
 }
 
-func basicConnect(t *testing.T, ep *basicEndpoint) *Router {
-	r := NewRouter()
+func basicConnect(t *testing.T, ep *basicEndpoint, server Endpoint) *BasicRouter {
+	r := NewBasicRouter()
 	r.RegisterRealm(test_realm, NewBasicRealm())
 
-	ep.outgoing <- &Hello{Realm: test_realm}
-	err := r.Accept(ep)
-	if err != nil {
+	ep.Send(&Hello{Realm: test_realm})
+	if err := r.Accept(server); err != nil {
 		t.Fatal(err)
 	}
 
@@ -69,8 +65,10 @@ func basicConnect(t *testing.T, ep *basicEndpoint) *Router {
 }
 
 func TestHandshake(t *testing.T) {
-	ep := &basicEndpoint{outgoing: make(chan Message, 5), incoming: make(chan Message, 5)}
-	r := basicConnect(t, ep)
+	client, server := pipe()
+
+	ep := &basicEndpoint{client}
+	r := basicConnect(t, ep, server)
 	defer r.Close()
 
 	ep.outgoing <- &Goodbye{}
@@ -85,12 +83,14 @@ func TestHandshake(t *testing.T) {
 }
 
 func TestInvalidRealm(t *testing.T) {
-	r := NewRouter()
+	r := NewBasicRouter()
 	defer r.Close()
 
-	ep := &basicEndpoint{outgoing: make(chan Message, 5), incoming: make(chan Message, 5)}
-	ep.outgoing <- &Hello{Realm: "does.not.exist"}
-	err := r.Accept(ep)
+	client, server := pipe()
+
+	ep := &basicEndpoint{client}
+	ep.Send(&Hello{Realm: "does.not.exist"})
+	err := r.Accept(server)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,8 +105,9 @@ func TestInvalidRealm(t *testing.T) {
 }
 
 func TestPublishNoAcknowledge(t *testing.T) {
-	ep := &basicEndpoint{outgoing: make(chan Message, 5), incoming: make(chan Message, 5)}
-	r := basicConnect(t, ep)
+	client, server := pipe()
+	ep := &basicEndpoint{client}
+	r := basicConnect(t, ep, server)
 	defer r.Close()
 
 	id := NewID()
@@ -121,8 +122,9 @@ func TestPublishNoAcknowledge(t *testing.T) {
 }
 
 func TestPublishAbsentAcknowledge(t *testing.T) {
-	ep := &basicEndpoint{outgoing: make(chan Message, 5), incoming: make(chan Message, 5)}
-	r := basicConnect(t, ep)
+	client, server := pipe()
+	ep := &basicEndpoint{client}
+	r := basicConnect(t, ep, server)
 	defer r.Close()
 
 	id := NewID()
@@ -137,8 +139,9 @@ func TestPublishAbsentAcknowledge(t *testing.T) {
 }
 
 func TestPublishAcknowledge(t *testing.T) {
-	ep := &basicEndpoint{outgoing: make(chan Message, 5), incoming: make(chan Message, 5)}
-	r := basicConnect(t, ep)
+	client, server := pipe()
+	ep := &basicEndpoint{client}
+	r := basicConnect(t, ep, &basicEndpoint{server})
 	defer r.Close()
 
 	id := NewID()
@@ -158,12 +161,13 @@ func TestPublishAcknowledge(t *testing.T) {
 func TestSubscribe(t *testing.T) {
 	const test_topic = URI("some.uri")
 
-	sub := &basicEndpoint{outgoing: make(chan Message, 5), incoming: make(chan Message, 5)}
-	r := basicConnect(t, sub)
+	subClient, subServer := pipe()
+	sub := &basicEndpoint{subClient}
+	r := basicConnect(t, sub, &basicEndpoint{subServer})
 	defer r.Close()
 
 	subscribeId := NewID()
-	sub.outgoing <- &Subscribe{Request: subscribeId, Topic: test_topic}
+	sub.Send(&Subscribe{Request: subscribeId, Topic: test_topic})
 
 	var subscriptionId ID
 	select {
@@ -179,13 +183,14 @@ func TestSubscribe(t *testing.T) {
 		}
 	}
 
-	pub := &basicEndpoint{outgoing: make(chan Message, 5), incoming: make(chan Message, 5)}
-	pub.outgoing <- &Hello{Realm: test_realm}
-	if err := r.Accept(pub); err != nil {
+	pubClient, pubServer := pipe()
+	pub := &basicEndpoint{pubClient}
+	pub.Send(&Hello{Realm: test_realm})
+	if err := r.Accept(&basicEndpoint{pubServer}); err != nil {
 		t.Fatal("Error pubing publisher")
 	}
 	pub_id := NewID()
-	pub.outgoing <- &Publish{Request: pub_id, Topic: test_topic}
+	pub.Send(&Publish{Request: pub_id, Topic: test_topic})
 
 	select {
 	case <-time.After(time.Millisecond):

@@ -22,24 +22,31 @@ type client struct {
 	kill chan<- URI
 }
 
-// Router is a very basic WAMP router.
-type Router struct {
+type Router interface {
+	Accept(Endpoint) error
+	Close() error
+	RegisterRealm(URI, Realm) error
+}
+
+// BasicRouter is a very basic WAMP router.
+type BasicRouter struct {
 	*BasicBroker
 
 	realms  map[URI]Realm
-	clients map[URI][]client
+	clients map[URI][]Session
 	closing bool
+	lastId  int
 }
 
-func NewRouter() *Router {
-	return &Router{
+func NewBasicRouter() *BasicRouter {
+	return &BasicRouter{
 		BasicBroker: NewBasicBroker(),
 		realms:      make(map[URI]Realm),
-		clients:     make(map[URI][]client),
+		clients:     make(map[URI][]Session),
 	}
 }
 
-func (r *Router) Close() error {
+func (r *BasicRouter) Close() error {
 	r.closing = true
 	for _, clients := range r.clients {
 		for _, client := range clients {
@@ -49,7 +56,7 @@ func (r *Router) Close() error {
 	return nil
 }
 
-func (r *Router) RegisterRealm(uri URI, realm Realm) error {
+func (r *BasicRouter) RegisterRealm(uri URI, realm Realm) error {
 	if _, ok := r.realms[uri]; ok {
 		return realmExists(uri)
 	}
@@ -57,18 +64,17 @@ func (r *Router) RegisterRealm(uri URI, realm Realm) error {
 	return nil
 }
 
-func (r *Router) Broker(realm URI) Broker {
-	br := r.realms[realm].Broker()
-	if br == nil {
-		br = r
+func (r *BasicRouter) broker(realm URI) Broker {
+	if br := r.realms[realm].Broker(); br != nil {
+		return br
 	}
-	return br
+	return r
 }
 
-func (r *Router) handleEP(ep Endpoint, realm URI, kill <-chan URI) {
-	defer ep.Close()
+func (r *BasicRouter) handleSession(sess Session, realm URI) {
+	defer sess.Close()
 
-	c := ep.Receive()
+	c := sess.Receive()
 
 	for {
 		var msg Message
@@ -78,50 +84,50 @@ func (r *Router) handleEP(ep Endpoint, realm URI, kill <-chan URI) {
 			if !open {
 				return
 			}
-		case reason := <-kill:
-			ep.Send(&Goodbye{Reason: reason})
+		case reason := <-sess.kill:
+			sess.Send(&Goodbye{Reason: reason})
 			// TODO: wait for client Goodbye?
 			return
 		}
 
 		switch v := msg.(type) {
 		case *Goodbye:
-			ep.Send(&Goodbye{Reason: WAMP_ERROR_GOODBYE_AND_OUT})
+			sess.Send(&Goodbye{Reason: WAMP_ERROR_GOODBYE_AND_OUT})
 			return
 
 		// Broker messages
 		case *Publish:
-			if pub, ok := ep.(Publisher); ok {
-				r.Broker(realm).Publish(pub, v)
+			if pub, ok := sess.Endpoint.(Publisher); ok {
+				r.broker(realm).Publish(pub, v)
 			} else {
 				err := &Error{
 					Type:    v.MessageType(),
 					Request: v.Request,
 					Error:   WAMP_ERROR_NOT_AUTHORIZED,
 				}
-				ep.Send(err)
+				sess.Send(err)
 			}
 		case *Subscribe:
-			if sub, ok := ep.(Subscriber); ok {
-				r.Broker(realm).Subscribe(sub, v)
+			if sub, ok := sess.Endpoint.(Subscriber); ok {
+				r.broker(realm).Subscribe(sub, v)
 			} else {
 				err := &Error{
 					Type:    v.MessageType(),
 					Request: v.Request,
 					Error:   WAMP_ERROR_NOT_AUTHORIZED,
 				}
-				ep.Send(err)
+				sess.Send(err)
 			}
 		case *Unsubscribe:
-			if sub, ok := ep.(Subscriber); ok {
-				r.Broker(realm).Unsubscribe(sub, v)
+			if sub, ok := sess.Endpoint.(Subscriber); ok {
+				r.broker(realm).Unsubscribe(sub, v)
 			} else {
 				err := &Error{
 					Type:    v.MessageType(),
 					Request: v.Request,
 					Error:   WAMP_ERROR_NOT_AUTHORIZED,
 				}
-				ep.Send(err)
+				sess.Send(err)
 			}
 
 		default:
@@ -130,7 +136,7 @@ func (r *Router) handleEP(ep Endpoint, realm URI, kill <-chan URI) {
 	}
 }
 
-func (r *Router) Accept(ep Endpoint) error {
+func (r *BasicRouter) Accept(ep Endpoint) error {
 	if r.closing {
 		ep.Send(&Abort{Reason: WAMP_ERROR_SYSTEM_SHUTDOWN})
 		ep.Close()
@@ -140,7 +146,7 @@ func (r *Router) Accept(ep Endpoint) error {
 	c := ep.Receive()
 
 	select {
-	case <-time.After(5*time.Second):
+	case <-time.After(5 * time.Second):
 		ep.Close()
 		return fmt.Errorf("Timeout on receiving messages")
 	case msg, open := <-c:
@@ -160,14 +166,16 @@ func (r *Router) Accept(ep Endpoint) error {
 			}
 			return ep.Close()
 		} else {
+			id := NewID()
+
 			// TODO: challenge
-			if err := ep.Send(&Welcome{Id: NewID()}); err != nil {
+			if err := ep.Send(&Welcome{Id: id}); err != nil {
 				return err
 			}
 
-			kill := make(chan URI, 1)
-			r.clients[hello.Realm] = append(r.clients[hello.Realm], client{kill: kill})
-			go r.handleEP(ep, hello.Realm, kill)
+			sess := Session{Endpoint: ep, Id: id, kill: make(chan URI, 1)}
+			r.clients[hello.Realm] = append(r.clients[hello.Realm], sess)
+			go r.handleSession(sess, hello.Realm)
 		}
 	}
 

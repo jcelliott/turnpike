@@ -37,6 +37,10 @@ const (
 	WAMP_ERROR_ERROR_PROCEDURE_ALREADY_EXISTS = URI("wamp.error.procedure_already_exists")
 )
 
+const (
+	MAX_ID = 2 << 53
+)
+
 func NewID() ID {
-	return ID(rand.Intn(2 << 53))
+	return ID(rand.Intn(MAX_ID))
 }
