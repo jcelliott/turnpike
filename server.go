@@ -146,6 +146,15 @@ func (t *Server) SendEvent(topic string, event interface{}) {
 	})
 }
 
+// ConnectedClients returns a slice of the ids of all connected clients
+func (t *Server) ConnectedClients() []string {
+	clientIDs := []string{}
+	for id, _ := range t.clients {
+		clientIDs = append(clientIDs, id)
+	}
+	return clientIDs
+}
+
 // HandleWebsocket implements the go.net/websocket.Handler interface.
 func (t *Server) HandleWebsocket(conn *websocket.Conn) {
 	defer conn.Close()
