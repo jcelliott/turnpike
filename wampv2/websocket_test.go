@@ -1,11 +1,11 @@
 package wampv2
 
 import (
-	"testing"
+	"fmt"
+	"io"
 	"net"
 	"net/http"
-	"io"
-	"fmt"
+	"testing"
 
 	"github.com/gorilla/websocket"
 )

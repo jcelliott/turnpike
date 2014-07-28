@@ -5,9 +5,9 @@ import (
 )
 
 type websocketEndpoint struct {
-	conn *websocket.Conn
-	serializer Serializer
-	messages chan Message
+	conn        *websocket.Conn
+	serializer  Serializer
+	messages    chan Message
 	payloadType int
 }
 
@@ -28,10 +28,10 @@ func newWebsocketClient(url, protocol, origin string, serializer Serializer, pay
 		return nil, err
 	}
 	ep := &websocketEndpoint{
-			conn: conn,
-			messages: make(chan Message, 10),
-			serializer: serializer,
-			payloadType: payloadType,
+		conn:        conn,
+		messages:    make(chan Message, 10),
+		serializer:  serializer,
+		payloadType: payloadType,
 	}
 	go func() {
 		for {

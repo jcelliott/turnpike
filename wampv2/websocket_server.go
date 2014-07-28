@@ -8,29 +8,31 @@ import (
 )
 
 const (
-	jsonWebsocketProtocol = "wamp.2.json"
+	jsonWebsocketProtocol    = "wamp.2.json"
 	msgpackWebsocketProtocol = "wamp.2.msgpack"
 )
 
 type invalidPayload byte
+
 func (e invalidPayload) Error() string {
 	return fmt.Sprintf("Invalid payloadType: %d", e)
 }
 
 type protocolExists string
+
 func (e protocolExists) Error() string {
 	return "This protocol has already been registered: " + string(e)
 }
 
 type protocol struct {
 	payloadType int
-	serializer Serializer
+	serializer  Serializer
 }
 
 // WebsocketServer handles websocket connections.
 type WebsocketServer struct {
 	upgrader *websocket.Upgrader
-	router Router
+	router   Router
 
 	protocols map[string]protocol
 
@@ -42,7 +44,7 @@ type WebsocketServer struct {
 
 func NewWebsocketServer(r Router) *WebsocketServer {
 	s := &WebsocketServer{
-		router: r,
+		router:    r,
 		protocols: make(map[string]protocol),
 	}
 
@@ -95,9 +97,9 @@ func (s *WebsocketServer) handleWebsocket(conn *websocket.Conn) {
 	}
 
 	ep := websocketEndpoint{
-		conn: conn,
-		serializer: serializer,
-		messages: make(chan Message, 10),
+		conn:        conn,
+		serializer:  serializer,
+		messages:    make(chan Message, 10),
 		payloadType: payloadType,
 	}
 	go func() {

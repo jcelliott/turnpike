@@ -1,7 +1,7 @@
 package wampv2
 
 func spliceSubscribers(subs []Subscriber, i int) []Subscriber {
-	if i == len(subs) - 1 {
+	if i == len(subs)-1 {
 		return subs[:i]
 	}
 	return append(subs[:i], subs[i+1:]...)
@@ -45,13 +45,13 @@ type Broker interface {
 
 // A super simple broker that matches URIs to Subscribers.
 type BasicBroker struct {
-	routes map[URI]map[ID]Subscriber
+	routes        map[URI]map[ID]Subscriber
 	subscriptions map[ID]URI
 }
 
 func NewBasicBroker() *BasicBroker {
 	return &BasicBroker{
-		routes: make(map[URI]map[ID]Subscriber),
+		routes:        make(map[URI]map[ID]Subscriber),
 		subscriptions: make(map[ID]URI),
 	}
 }
@@ -60,7 +60,7 @@ func (br *BasicBroker) Publish(pub Publisher, msg *Publish) {
 	pubId := NewID()
 	evtTemplate := Event{
 		Publication: pubId,
-		Arguments: msg.Arguments,
+		Arguments:   msg.Arguments,
 		ArgumentsKw: msg.ArgumentsKw,
 	}
 	for id, sub := range br.routes[msg.Topic] {
@@ -90,9 +90,9 @@ func (br *BasicBroker) Unsubscribe(sub Subscriber, msg *Unsubscribe) {
 	topic, ok := br.subscriptions[msg.Subscription]
 	if !ok {
 		err := &Error{
-			Type: msg.MessageType(),
+			Type:    msg.MessageType(),
 			Request: msg.Request,
-			Error: WAMP_ERROR_NO_SUCH_SUBSCRIPTION,
+			Error:   WAMP_ERROR_NO_SUCH_SUBSCRIPTION,
 		}
 		sub.SendError(err)
 		return
@@ -100,16 +100,16 @@ func (br *BasicBroker) Unsubscribe(sub Subscriber, msg *Unsubscribe) {
 
 	if r, ok := br.routes[topic]; !ok {
 		err := &Error{
-			Type: msg.MessageType(),
+			Type:    msg.MessageType(),
 			Request: msg.Request,
-			Error: URI("wamp.error.internal_error"),
+			Error:   URI("wamp.error.internal_error"),
 		}
 		sub.SendError(err)
 	} else if _, ok := r[msg.Subscription]; !ok {
 		err := &Error{
-			Type: msg.MessageType(),
+			Type:    msg.MessageType(),
 			Request: msg.Request,
-			Error: URI("wamp.error.internal_error"),
+			Error:   URI("wamp.error.internal_error"),
 		}
 		sub.SendError(err)
 	} else {
