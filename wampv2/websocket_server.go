@@ -1,9 +1,10 @@
 package wampv2
 
 import (
-	"code.google.com/p/go.net/websocket"
 	"fmt"
 	"net/http"
+
+	"github.com/gorilla/websocket"
 )
 
 const (
@@ -22,13 +23,13 @@ func (e protocolExists) Error() string {
 }
 
 type protocol struct {
-	payloadType byte
+	payloadType int
 	serializer Serializer
 }
 
 // WebsocketServer handles websocket connections.
 type WebsocketServer struct {
-	server websocket.Server
+	upgrader *websocket.Upgrader
 	router Router
 
 	protocols map[string]protocol
@@ -45,61 +46,52 @@ func NewWebsocketServer(r Router) *WebsocketServer {
 		protocols: make(map[string]protocol),
 	}
 
-	s.server = websocket.Server{
-		Handshake: s.handshake,
-		Handler:   websocket.Handler(s.handleWebsocket),
-	}
+	s.upgrader = &websocket.Upgrader{}
 	return s
 }
 
-func (s *WebsocketServer) RegisterProtocol(proto string, payloadType byte, serializer Serializer) error {
-	if payloadType != websocket.TextFrame && payloadType != websocket.BinaryFrame {
+func (s *WebsocketServer) RegisterProtocol(proto string, payloadType int, serializer Serializer) error {
+	if payloadType != websocket.TextMessage && payloadType != websocket.BinaryMessage {
 		return invalidPayload(payloadType)
 	}
 	if _, ok := s.protocols[proto]; ok {
 		return protocolExists(proto)
 	}
 	s.protocols[proto] = protocol{payloadType, serializer}
+	s.upgrader.Subprotocols = append(s.upgrader.Subprotocols, proto)
 	return nil
 }
 
 func (s *WebsocketServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	s.server.ServeHTTP(w, r)
-}
-
-func (s *WebsocketServer) handshake(config *websocket.Config, req *http.Request) error {
-	for _, protocol := range config.Protocol {
-		if _, ok := s.protocols[protocol]; ok {
-			config.Protocol = []string{protocol}
-			return nil
-		}
-		if protocol == jsonWebsocketProtocol || protocol == msgpackWebsocketProtocol {
-			config.Protocol = []string{protocol}
-			return nil
-		}
+	// TODO: subprotocol?
+	conn, err := s.upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		fmt.Println("Error:", err)
 	}
-	return websocket.ErrBadWebSocketProtocol
+	s.handleWebsocket(conn)
 }
 
 func (s *WebsocketServer) handleWebsocket(conn *websocket.Conn) {
 	var serializer Serializer
-	var payloadType byte
-	for _, proto := range conn.Config().Protocol {
-		if protocol, ok := s.protocols[proto]; ok {
-			serializer = protocol.serializer
-			payloadType = protocol.payloadType
-			break
-		} else if proto == "wamp.2.json" {
+	var payloadType int
+	if proto, ok := s.protocols[conn.Subprotocol()]; ok {
+		serializer = proto.serializer
+		payloadType = proto.payloadType
+	} else {
+		// TODO: this will not currently ever be hit because
+		//       gorilla/websocket will reject the conncetion
+		//       if the subprotocol isn't registered
+		switch conn.Subprotocol() {
+		case "wamp.2.json":
 			serializer = new(JSONSerializer)
-			payloadType = websocket.TextFrame
-			break
-		} else if proto == "wamp.2.msgpack" {
+			payloadType = websocket.TextMessage
+		case "wamp.2.msgpack":
 			// TODO: implement msgpack
+			fallthrough
+		default:
+			conn.Close()
+			return
 		}
-	}
-	if serializer == nil {
-		conn.Close()
-		return
 	}
 
 	ep := websocketEndpoint{
@@ -108,10 +100,22 @@ func (s *WebsocketServer) handleWebsocket(conn *websocket.Conn) {
 		messages: make(chan Message, 10),
 		payloadType: payloadType,
 	}
-	if payloadType == websocket.TextFrame {
-		go ep.receiveTextFrames()
-	} else if payloadType == websocket.BinaryFrame {
-		go ep.receiveBinaryFrames()
-	}
+	go func() {
+		for {
+			// TODO: use conn.NextMessage() and stream
+			// TODO: do something different based on binary/text frames
+			if _, b, err := conn.ReadMessage(); err != nil {
+				conn.Close()
+				break
+			} else {
+				msg, err := serializer.Deserialize(b)
+				if err != nil {
+					// TODO: handle error
+				} else {
+					ep.messages <- msg
+				}
+			}
+		}
+	}()
 	s.router.Accept(&ep)
 }

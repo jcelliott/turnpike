@@ -1,20 +1,25 @@
 package wampv2
 
-import "code.google.com/p/go.net/websocket"
+import (
+	"github.com/gorilla/websocket"
+)
 
 type websocketEndpoint struct {
 	conn *websocket.Conn
 	serializer Serializer
 	messages chan Message
-	payloadType byte
+	payloadType int
 }
 
 func NewJSONWebsocketClient(url, origin string) (Endpoint, error) {
-	return newWebsocketClient(url, jsonWebsocketProtocol, origin, &JSONSerializer{}, websocket.TextFrame)
+	return newWebsocketClient(url, jsonWebsocketProtocol, origin, &JSONSerializer{}, websocket.TextMessage)
 }
 
-func newWebsocketClient(url, protocol, origin string, serializer Serializer, payloadType byte) (Endpoint, error) {
-	conn, err := websocket.Dial(url, protocol, origin)
+func newWebsocketClient(url, protocol, origin string, serializer Serializer, payloadType int) (Endpoint, error) {
+	dialer := websocket.Dialer{
+		Subprotocols: []string{protocol},
+	}
+	conn, _, err := dialer.Dial(url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -24,45 +29,24 @@ func newWebsocketClient(url, protocol, origin string, serializer Serializer, pay
 			serializer: serializer,
 			payloadType: payloadType,
 	}
-	switch payloadType {
-	case websocket.TextFrame:
-		go ep.receiveTextFrames()
-	case websocket.BinaryFrame:
-		go ep.receiveBinaryFrames()
-	}
+	go func() {
+		for {
+			// TODO: use conn.NextMessage() and stream
+			// TODO: do something different based on binary/text frames
+			if _, b, err := conn.ReadMessage(); err != nil {
+				conn.Close()
+				break
+			} else {
+				msg, err := serializer.Deserialize(b)
+				if err != nil {
+					// TODO: handle error
+				} else {
+					ep.messages <- msg
+				}
+			}
+		}
+	}()
 	return ep, nil
-}
-
-func (ep *websocketEndpoint) receiveTextFrames() error {
-	for {
-		var str string
-		if err := websocket.Message.Receive(ep.conn, &str); err != nil {
-			// TODO: check if it's a closing err
-			return err
-		}
-		if msg, err := ep.serializer.Deserialize([]byte(str)); err != nil {
-			// TODO: handle error
-		} else {
-			ep.messages <- msg
-		}
-	}
-	return nil
-}
-
-func (ep *websocketEndpoint) receiveBinaryFrames() (err error) {
-	for {
-		var b []byte
-		if err := websocket.Message.Receive(ep.conn, &b); err != nil {
-			// TODO: check if it's a closing err
-			return err
-		}
-		if msg, err := ep.serializer.Deserialize(b); err != nil {
-			// TODO: handle error
-		} else {
-			ep.messages <- msg
-		}
-	}
-	return nil
 }
 
 func (ep *websocketEndpoint) Send(msg Message) error {
@@ -70,13 +54,7 @@ func (ep *websocketEndpoint) Send(msg Message) error {
 	if err != nil {
 		return err
 	}
-	switch ep.payloadType {
-	case websocket.TextFrame:
-		return websocket.Message.Send(ep.conn, string(b))
-	case websocket.BinaryFrame:
-		return websocket.Message.Send(ep.conn, b)
-	}
-	return nil
+	return ep.conn.WriteMessage(ep.payloadType, b)
 }
 func (ep *websocketEndpoint) Receive() <-chan Message {
 	return ep.messages

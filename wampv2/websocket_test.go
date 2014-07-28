@@ -6,12 +6,15 @@ import (
 	"net/http"
 	"io"
 	"fmt"
+
+	"github.com/gorilla/websocket"
 )
 
 func newWebsocketServer(t *testing.T) (int, Router, io.Closer) {
 	r := NewBasicRouter()
 	r.RegisterRealm(test_realm, NewBasicRealm())
 	s := NewWebsocketServer(r)
+	s.RegisterProtocol("wamp.2.json", websocket.TextMessage, new(JSONSerializer))
 	server := &http.Server{
 		Handler: s,
 	}
