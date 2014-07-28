@@ -82,12 +82,12 @@ func (s *WebsocketServer) handleWebsocket(conn *websocket.Conn) {
 		//       gorilla/websocket will reject the conncetion
 		//       if the subprotocol isn't registered
 		switch conn.Subprotocol() {
-		case "wamp.2.json":
+		case jsonWebsocketProtocol:
 			serializer = new(JSONSerializer)
 			payloadType = websocket.TextMessage
-		case "wamp.2.msgpack":
-			// TODO: implement msgpack
-			fallthrough
+		case msgpackWebsocketProtocol:
+			serializer = new(MessagePackSerializer)
+			payloadType = websocket.BinaryMessage
 		default:
 			conn.Close()
 			return

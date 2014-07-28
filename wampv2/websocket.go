@@ -12,7 +12,11 @@ type websocketEndpoint struct {
 }
 
 func NewJSONWebsocketClient(url, origin string) (Endpoint, error) {
-	return newWebsocketClient(url, jsonWebsocketProtocol, origin, &JSONSerializer{}, websocket.TextMessage)
+	return newWebsocketClient(url, jsonWebsocketProtocol, origin, new(JSONSerializer), websocket.TextMessage)
+}
+
+func NewMessagePackWebsocketClient(url, origin string) (Endpoint, error) {
+	return newWebsocketClient(url, msgpackWebsocketProtocol, origin, new(MessagePackSerializer), websocket.BinaryMessage)
 }
 
 func newWebsocketClient(url, protocol, origin string, serializer Serializer, payloadType int) (Endpoint, error) {
