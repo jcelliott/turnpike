@@ -9,6 +9,7 @@ type Realm interface {
 
 type BasicRealm struct {
 }
+
 func NewBasicRealm() *BasicRealm {
 	return &BasicRealm{}
 }
