@@ -3,7 +3,7 @@ package wampv2
 import "testing"
 import "time"
 
-const test_realm = URI("test.realm")
+const testRealm = URI("test.realm")
 
 type basicEndpoint struct {
 	*localEndpoint
@@ -20,25 +20,23 @@ func (ep *basicEndpoint) Send(msg Message) error {
 }
 
 // satisfy ErrorHandler
-func (ep *basicEndpoint) SendError(msg *Error) {
-	ep.Send(msg)
-}
+func (ep *basicEndpoint) SendError(msg *Error) { ep.Send(msg) }
 
 // satisfy Publisher
-func (ep *basicEndpoint) SendPublished(msg *Published) {
-	ep.Send(msg)
-}
+func (ep *basicEndpoint) SendPublished(msg *Published) { ep.Send(msg) }
 
 // satisfy Subscriber
-func (ep *basicEndpoint) SendEvent(msg *Event) {
-	ep.Send(msg)
-}
-func (ep *basicEndpoint) SendUnsubscribed(msg *Unsubscribed) {
-	ep.Send(msg)
-}
-func (ep *basicEndpoint) SendSubscribed(msg *Subscribed) {
-	ep.Send(msg)
-}
+func (ep *basicEndpoint) SendEvent(msg *Event)               { ep.Send(msg) }
+func (ep *basicEndpoint) SendUnsubscribed(msg *Unsubscribed) { ep.Send(msg) }
+func (ep *basicEndpoint) SendSubscribed(msg *Subscribed)     { ep.Send(msg) }
+
+// satisfy Callee
+func (ep *basicEndpoint) SendRegistered(msg *Registered)     { ep.Send(msg) }
+func (ep *basicEndpoint) SendUnregistered(msg *Unregistered) { ep.Send(msg) }
+func (ep *basicEndpoint) SendInvocation(msg *Invocation)     { ep.Send(msg) }
+
+// satisfy Caller
+func (ep *basicEndpoint) SendResult(msg *Result) { ep.Send(msg) }
 
 func (ep *basicEndpoint) Close() error {
 	close(ep.outgoing)
@@ -47,9 +45,9 @@ func (ep *basicEndpoint) Close() error {
 
 func basicConnect(t *testing.T, ep *basicEndpoint, server Endpoint) *DefaultRouter {
 	r := NewDefaultRouter()
-	r.RegisterRealm(test_realm, NewDefaultRealm())
+	r.RegisterRealm(testRealm, NewDefaultRealm())
 
-	ep.Send(&Hello{Realm: test_realm})
+	ep.Send(&Hello{Realm: testRealm})
 	if err := r.Accept(server); err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +57,7 @@ func basicConnect(t *testing.T, ep *basicEndpoint, server Endpoint) *DefaultRout
 	}
 
 	if msg := <-ep.incoming; msg.MessageType() != WELCOME {
-		t.Fatal("Expected first message sent to be a wescome message")
+		t.Fatal("Expected first message sent to be a welcome message")
 	}
 	return r
 }
@@ -159,7 +157,7 @@ func TestPublishAcknowledge(t *testing.T) {
 }
 
 func TestSubscribe(t *testing.T) {
-	const test_topic = URI("some.uri")
+	const testTopic = URI("some.uri")
 
 	subClient, subServer := pipe()
 	sub := &basicEndpoint{subClient}
@@ -167,7 +165,7 @@ func TestSubscribe(t *testing.T) {
 	defer r.Close()
 
 	subscribeId := NewID()
-	sub.Send(&Subscribe{Request: subscribeId, Topic: test_topic})
+	sub.Send(&Subscribe{Request: subscribeId, Topic: testTopic})
 
 	var subscriptionId ID
 	select {
@@ -185,12 +183,12 @@ func TestSubscribe(t *testing.T) {
 
 	pubClient, pubServer := pipe()
 	pub := &basicEndpoint{pubClient}
-	pub.Send(&Hello{Realm: test_realm})
+	pub.Send(&Hello{Realm: testRealm})
 	if err := r.Accept(&basicEndpoint{pubServer}); err != nil {
 		t.Fatal("Error pubing publisher")
 	}
-	pub_id := NewID()
-	pub.Send(&Publish{Request: pub_id, Topic: test_topic})
+	pubId := NewID()
+	pub.Send(&Publish{Request: pubId, Topic: testTopic})
 
 	select {
 	case <-time.After(time.Millisecond):
@@ -202,5 +200,74 @@ func TestSubscribe(t *testing.T) {
 			t.Errorf("Subscription id does not match the one sent: %d != %d", event.Subscription, subscriptionId)
 		}
 		// TODO: check Details, Arguments, ArgumentsKw
+	}
+}
+
+type basicCallee struct{}
+
+func TestCall(t *testing.T) {
+	const testProcedure = URI("turnpike.test.endpoint")
+	calleeClient, calleeServer := pipe()
+	callee := &basicEndpoint{calleeClient}
+	r := basicConnect(t, callee, &basicEndpoint{calleeServer})
+	defer r.Close()
+
+	registerId := NewID()
+	// callee registers remote procedure
+	callee.Send(&Register{Request: registerId, Procedure: testProcedure})
+
+	var registrationId ID
+	select {
+	case <-time.After(time.Millisecond):
+		t.Fatal("Timed out waiting for REGISTERED")
+	case msg := <-callee.incoming:
+		if registered, ok := msg.(*Registered); !ok {
+			t.Fatalf("Expected REGISTERED, but received %s instead: %+v", msg.MessageType(), msg)
+		} else if registered.Request != registerId {
+			t.Fatalf("Request id does not match the one sent: %d != %d", registered.Request, registerId)
+		} else {
+			registrationId = registered.Registration
+		}
+	}
+
+	callerClient, callerServer := pipe()
+	caller := &basicEndpoint{callerClient}
+	caller.Send(&Hello{Realm: testRealm})
+	if err := r.Accept(&basicEndpoint{callerServer}); err != nil {
+		t.Fatal("Error connecting caller")
+	}
+	if msg := <-caller.incoming; msg.MessageType() != WELCOME {
+		t.Fatal("Expected first message sent to be a welcome message")
+	}
+	callId := NewID()
+	// caller calls remote procedure
+	caller.Send(&Call{Request: callId, Procedure: testProcedure})
+
+	var invocationId ID
+	select {
+	case <-time.After(time.Millisecond):
+		t.Fatal("Timed out waiting for INVOCATION")
+	case msg := <-callee.incoming:
+		if invocation, ok := msg.(*Invocation); !ok {
+			t.Errorf("Expected INVOCATION, but received %s instead: %+v", msg.MessageType(), msg)
+		} else if invocation.Registration != registrationId {
+			t.Errorf("Registration id does not match the one assigned: %d != %d", invocation.Registration, registrationId)
+		} else {
+			invocationId = invocation.Request
+		}
+	}
+
+	// callee returns result of remove procedure
+	callee.Send(&Yield{Request: invocationId})
+
+	select {
+	case <-time.After(time.Millisecond):
+		t.Fatal("Timed out waiting for RESULT")
+	case msg := <-caller.incoming:
+		if result, ok := msg.(*Result); !ok {
+			t.Errorf("Expected RESULT, but received %s instead: %+v", msg.MessageType(), msg)
+		} else if result.Request != callId {
+			t.Errorf("Result id does not match the call id: %d != %d", result.Request, callId)
+		}
 	}
 }

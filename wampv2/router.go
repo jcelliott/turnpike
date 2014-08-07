@@ -31,6 +31,7 @@ type Router interface {
 // DefaultRouter is a very basic WAMP router.
 type DefaultRouter struct {
 	*DefaultBroker
+	*DefaultDealer
 
 	realms  map[URI]Realm
 	clients map[URI][]Session
@@ -41,6 +42,7 @@ type DefaultRouter struct {
 func NewDefaultRouter() *DefaultRouter {
 	return &DefaultRouter{
 		DefaultBroker: NewDefaultBroker(),
+		DefaultDealer: NewDefaultDealer(),
 		realms:        make(map[URI]Realm),
 		clients:       make(map[URI][]Session),
 	}
@@ -67,6 +69,13 @@ func (r *DefaultRouter) RegisterRealm(uri URI, realm Realm) error {
 func (r *DefaultRouter) broker(realm URI) Broker {
 	if br := r.realms[realm].Broker(); br != nil {
 		return br
+	}
+	return r
+}
+
+func (r *DefaultRouter) dealer(realm URI) Dealer {
+	if d := r.realms[realm].Dealer(); d != nil {
+		return d
 	}
 	return r
 }
@@ -100,40 +109,59 @@ func (r *DefaultRouter) handleSession(sess Session, realm URI) {
 			if pub, ok := sess.Endpoint.(Publisher); ok {
 				r.broker(realm).Publish(pub, v)
 			} else {
-				err := &Error{
-					Type:    v.MessageType(),
-					Request: v.Request,
-					Error:   WAMP_ERROR_NOT_AUTHORIZED,
-				}
-				sess.Send(err)
+				r.invalidSessionError(sess, v, v.Request)
 			}
 		case *Subscribe:
 			if sub, ok := sess.Endpoint.(Subscriber); ok {
 				r.broker(realm).Subscribe(sub, v)
 			} else {
-				err := &Error{
-					Type:    v.MessageType(),
-					Request: v.Request,
-					Error:   WAMP_ERROR_NOT_AUTHORIZED,
-				}
-				sess.Send(err)
+				r.invalidSessionError(sess, v, v.Request)
 			}
 		case *Unsubscribe:
 			if sub, ok := sess.Endpoint.(Subscriber); ok {
 				r.broker(realm).Unsubscribe(sub, v)
 			} else {
-				err := &Error{
-					Type:    v.MessageType(),
-					Request: v.Request,
-					Error:   WAMP_ERROR_NOT_AUTHORIZED,
-				}
-				sess.Send(err)
+				r.invalidSessionError(sess, v, v.Request)
+			}
+
+		// Dealer messages
+		case *Register:
+			if callee, ok := sess.Endpoint.(Callee); ok {
+				r.dealer(realm).Register(callee, v)
+			} else {
+				r.invalidSessionError(sess, v, v.Request)
+			}
+		case *Unregister:
+			if callee, ok := sess.Endpoint.(Callee); ok {
+				r.dealer(realm).Unregister(callee, v)
+			} else {
+				r.invalidSessionError(sess, v, v.Request)
+			}
+		case *Call:
+			if caller, ok := sess.Endpoint.(Caller); ok {
+				r.dealer(realm).Call(caller, v)
+			} else {
+				r.invalidSessionError(sess, v, v.Request)
+			}
+		case *Yield:
+			if callee, ok := sess.Endpoint.(Callee); ok {
+				r.dealer(realm).Yield(callee, v)
+			} else {
+				r.invalidSessionError(sess, v, v.Request)
 			}
 
 		default:
 			fmt.Println("Unhandled message:", v.MessageType())
 		}
 	}
+}
+
+func (r *DefaultRouter) invalidSessionError(sess Session, msg Message, req ID) {
+	sess.Send(&Error{
+		Type:    msg.MessageType(),
+		Request: req,
+		Error:   WAMP_ERROR_NOT_AUTHORIZED,
+	})
 }
 
 func (r *DefaultRouter) Accept(ep Endpoint) error {

@@ -19,7 +19,7 @@ const (
 	WAMP_ERROR_GOODBYE_AND_OUT = URI("wamp.error.goodbye_and_out")
 
 	// A Dealer could not perform a call, since the procedure called does not exist.
-	WAMP_NO_SUCH_PROCEDURE = URI("wamp.error.no_such_procedure")
+	WAMP_ERROR_NO_SUCH_PROCEDURE = URI("wamp.error.no_such_procedure")
 
 	// A Broker could not perform a unsubscribe, since the given subscription is not active.
 	WAMP_ERROR_NO_SUCH_SUBSCRIPTION = URI("wamp.error.no_such_subscription")
@@ -34,7 +34,7 @@ const (
 	WAMP_ERROR_INVALID_TOPIC = URI("wamp.error.invalid_topic")
 
 	// A procedure could not be registered, since a procedure with the given URI is already registered (and the Dealer is not able to set up a distributed registration).
-	WAMP_ERROR_ERROR_PROCEDURE_ALREADY_EXISTS = URI("wamp.error.procedure_already_exists")
+	WAMP_ERROR_PROCEDURE_ALREADY_EXISTS = URI("wamp.error.procedure_already_exists")
 )
 
 const (

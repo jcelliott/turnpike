@@ -12,7 +12,7 @@ import (
 
 func newWebsocketServer(t *testing.T) (int, Router, io.Closer) {
 	r := NewDefaultRouter()
-	r.RegisterRealm(test_realm, NewDefaultRealm())
+	r.RegisterRealm(testRealm, NewDefaultRealm())
 	s := NewWebsocketServer(r)
 	s.RegisterProtocol(jsonWebsocketProtocol, websocket.TextMessage, new(JSONSerializer))
 	s.RegisterProtocol(msgpackWebsocketProtocol, websocket.BinaryMessage, new(MessagePackSerializer))
@@ -38,7 +38,7 @@ func TestWSHandshakeJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ep.Send(&Hello{Realm: test_realm})
+	ep.Send(&Hello{Realm: testRealm})
 	go r.Accept(ep)
 
 	if msg, ok := <-ep.Receive(); !ok {
@@ -57,7 +57,7 @@ func TestWSHandshakeMsgpack(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ep.Send(&Hello{Realm: test_realm})
+	ep.Send(&Hello{Realm: testRealm})
 	go r.Accept(ep)
 
 	if msg, ok := <-ep.Receive(); !ok {
