@@ -44,19 +44,19 @@ type Broker interface {
 }
 
 // A super simple broker that matches URIs to Subscribers.
-type BasicBroker struct {
+type DefaultBroker struct {
 	routes        map[URI]map[ID]Subscriber
 	subscriptions map[ID]URI
 }
 
-func NewBasicBroker() *BasicBroker {
-	return &BasicBroker{
+func NewDefaultBroker() *DefaultBroker {
+	return &DefaultBroker{
 		routes:        make(map[URI]map[ID]Subscriber),
 		subscriptions: make(map[ID]URI),
 	}
 }
 
-func (br *BasicBroker) Publish(pub Publisher, msg *Publish) {
+func (br *DefaultBroker) Publish(pub Publisher, msg *Publish) {
 	pubId := NewID()
 	evtTemplate := Event{
 		Publication: pubId,
@@ -75,7 +75,8 @@ func (br *BasicBroker) Publish(pub Publisher, msg *Publish) {
 		pub.SendPublished(&Published{Request: msg.Request, Publication: pubId})
 	}
 }
-func (br *BasicBroker) Subscribe(sub Subscriber, msg *Subscribe) {
+
+func (br *DefaultBroker) Subscribe(sub Subscriber, msg *Subscribe) {
 	if _, ok := br.routes[msg.Topic]; !ok {
 		br.routes[msg.Topic] = make(map[ID]Subscriber)
 	}
@@ -86,7 +87,8 @@ func (br *BasicBroker) Subscribe(sub Subscriber, msg *Subscribe) {
 
 	sub.SendSubscribed(&Subscribed{Request: msg.Request, Subscription: id})
 }
-func (br *BasicBroker) Unsubscribe(sub Subscriber, msg *Unsubscribe) {
+
+func (br *DefaultBroker) Unsubscribe(sub Subscriber, msg *Unsubscribe) {
 	topic, ok := br.subscriptions[msg.Subscription]
 	if !ok {
 		err := &Error{

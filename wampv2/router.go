@@ -28,9 +28,9 @@ type Router interface {
 	RegisterRealm(URI, Realm) error
 }
 
-// BasicRouter is a very basic WAMP router.
-type BasicRouter struct {
-	*BasicBroker
+// DefaultRouter is a very basic WAMP router.
+type DefaultRouter struct {
+	*DefaultBroker
 
 	realms  map[URI]Realm
 	clients map[URI][]Session
@@ -38,15 +38,15 @@ type BasicRouter struct {
 	lastId  int
 }
 
-func NewBasicRouter() *BasicRouter {
-	return &BasicRouter{
-		BasicBroker: NewBasicBroker(),
-		realms:      make(map[URI]Realm),
-		clients:     make(map[URI][]Session),
+func NewDefaultRouter() *DefaultRouter {
+	return &DefaultRouter{
+		DefaultBroker: NewDefaultBroker(),
+		realms:        make(map[URI]Realm),
+		clients:       make(map[URI][]Session),
 	}
 }
 
-func (r *BasicRouter) Close() error {
+func (r *DefaultRouter) Close() error {
 	r.closing = true
 	for _, clients := range r.clients {
 		for _, client := range clients {
@@ -56,7 +56,7 @@ func (r *BasicRouter) Close() error {
 	return nil
 }
 
-func (r *BasicRouter) RegisterRealm(uri URI, realm Realm) error {
+func (r *DefaultRouter) RegisterRealm(uri URI, realm Realm) error {
 	if _, ok := r.realms[uri]; ok {
 		return realmExists(uri)
 	}
@@ -64,14 +64,14 @@ func (r *BasicRouter) RegisterRealm(uri URI, realm Realm) error {
 	return nil
 }
 
-func (r *BasicRouter) broker(realm URI) Broker {
+func (r *DefaultRouter) broker(realm URI) Broker {
 	if br := r.realms[realm].Broker(); br != nil {
 		return br
 	}
 	return r
 }
 
-func (r *BasicRouter) handleSession(sess Session, realm URI) {
+func (r *DefaultRouter) handleSession(sess Session, realm URI) {
 	defer sess.Close()
 
 	c := sess.Receive()
@@ -136,7 +136,7 @@ func (r *BasicRouter) handleSession(sess Session, realm URI) {
 	}
 }
 
-func (r *BasicRouter) Accept(ep Endpoint) error {
+func (r *DefaultRouter) Accept(ep Endpoint) error {
 	if r.closing {
 		ep.Send(&Abort{Reason: WAMP_ERROR_SYSTEM_SHUTDOWN})
 		ep.Close()

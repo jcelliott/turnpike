@@ -11,8 +11,8 @@ import (
 )
 
 func newWebsocketServer(t *testing.T) (int, Router, io.Closer) {
-	r := NewBasicRouter()
-	r.RegisterRealm(test_realm, NewBasicRealm())
+	r := NewDefaultRouter()
+	r.RegisterRealm(test_realm, NewDefaultRealm())
 	s := NewWebsocketServer(r)
 	s.RegisterProtocol(jsonWebsocketProtocol, websocket.TextMessage, new(JSONSerializer))
 	s.RegisterProtocol(msgpackWebsocketProtocol, websocket.BinaryMessage, new(MessagePackSerializer))

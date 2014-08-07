@@ -45,9 +45,9 @@ func (ep *basicEndpoint) Close() error {
 	return nil
 }
 
-func basicConnect(t *testing.T, ep *basicEndpoint, server Endpoint) *BasicRouter {
-	r := NewBasicRouter()
-	r.RegisterRealm(test_realm, NewBasicRealm())
+func basicConnect(t *testing.T, ep *basicEndpoint, server Endpoint) *DefaultRouter {
+	r := NewDefaultRouter()
+	r.RegisterRealm(test_realm, NewDefaultRealm())
 
 	ep.Send(&Hello{Realm: test_realm})
 	if err := r.Accept(server); err != nil {
@@ -83,7 +83,7 @@ func TestHandshake(t *testing.T) {
 }
 
 func TestInvalidRealm(t *testing.T) {
-	r := NewBasicRouter()
+	r := NewDefaultRouter()
 	defer r.Close()
 
 	client, server := pipe()

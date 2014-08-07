@@ -7,12 +7,13 @@ type Realm interface {
 	Broker() Broker
 }
 
-type BasicRealm struct {
+type DefaultRealm struct {
 }
 
-func NewBasicRealm() *BasicRealm {
-	return &BasicRealm{}
+func NewDefaultRealm() *DefaultRealm {
+	return &DefaultRealm{}
 }
-func (realm *BasicRealm) Broker() Broker {
+
+func (realm *DefaultRealm) Broker() Broker {
 	return nil
 }
