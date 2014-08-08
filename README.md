@@ -1,3 +1,10 @@
+### WAMP v1 deprecation ###
+
+Turnpike will be moving to WAMP v2 soon, and this version that supports WAMP v1 will no longer be
+maintained. Furthermore, the default branch for this repository will switch to the new version. This
+version will still be available (and go get-able) by using the import path
+[gopkg.in/jcelliott/turnpike.v1](gopkg.in/jcelliott/turnpike.v1).
+
 turnpike
 ========
 
