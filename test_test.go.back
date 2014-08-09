@@ -1,0 +1,18 @@
+package wampv2
+
+import (
+	_ "github.com/smartystreets/goconvey/convey"
+	// "testing"
+)
+
+// func TestSomething(t *testing.T) {
+// 	Convey("Given something", t, func() {
+// 		x := 1
+// 		Convey("After something else", func() {
+// 			x++
+// 			Convey("The value should be something else", func() {
+// 				So(x, ShouldEqual, 2)
+// 			})
+// 		})
+// 	})
+// }
