@@ -1,7 +1,7 @@
 package turnpike
 
 type Session struct {
-	Endpoint
+	Client
 	Id ID
 
 	kill chan URI
@@ -10,15 +10,15 @@ type Session struct {
 // Pipe creates two linked sessions. Messages sent to one will
 // appear in the Receive of the other. This is useful for implementing
 // client sessions
-func pipe() (*localEndpoint, *localEndpoint) {
+func pipe() (*localClient, *localClient) {
 	aToB := make(chan Message, 10)
 	bToA := make(chan Message, 10)
 
-	a := &localEndpoint{
+	a := &localClient{
 		incoming: bToA,
 		outgoing: aToB,
 	}
-	b := &localEndpoint{
+	b := &localClient{
 		incoming: aToB,
 		outgoing: bToA,
 	}
@@ -26,29 +26,29 @@ func pipe() (*localEndpoint, *localEndpoint) {
 	return a, b
 }
 
-type localEndpoint struct {
+type localClient struct {
 	outgoing chan<- Message
 	incoming <-chan Message
 }
 
 // Creates a local session that passes messages directly
 // into the Router.
-func NewLocalEndpoint(r Router) Endpoint {
+func NewLocalClient(r Router) Client {
 	a, b := pipe()
 	go r.Accept(a)
 	return b
 }
 
-func (s *localEndpoint) Receive() <-chan Message {
+func (s *localClient) Receive() <-chan Message {
 	return s.incoming
 }
 
-func (s *localEndpoint) Send(msg Message) error {
+func (s *localClient) Send(msg Message) error {
 	s.outgoing <- msg
 	return nil
 }
 
-func (s *localEndpoint) Close() error {
+func (s *localClient) Close() error {
 	close(s.outgoing)
 	return nil
 }

@@ -96,7 +96,7 @@ func (s *WebsocketServer) handleWebsocket(conn *websocket.Conn) {
 		}
 	}
 
-	ep := websocketEndpoint{
+	client := websocketClient{
 		conn:        conn,
 		serializer:  serializer,
 		messages:    make(chan Message, 10),
@@ -114,10 +114,10 @@ func (s *WebsocketServer) handleWebsocket(conn *websocket.Conn) {
 				if err != nil {
 					// TODO: handle error
 				} else {
-					ep.messages <- msg
+					client.messages <- msg
 				}
 			}
 		}
 	}()
-	s.router.Accept(&ep)
+	s.router.Accept(&client)
 }

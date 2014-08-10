@@ -4,22 +4,22 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type websocketEndpoint struct {
+type websocketClient struct {
 	conn        *websocket.Conn
 	serializer  Serializer
 	messages    chan Message
 	payloadType int
 }
 
-func NewJSONWebsocketClient(url, origin string) (Endpoint, error) {
+func NewJSONWebsocketClient(url, origin string) (Client, error) {
 	return newWebsocketClient(url, jsonWebsocketProtocol, origin, new(JSONSerializer), websocket.TextMessage)
 }
 
-func NewMessagePackWebsocketClient(url, origin string) (Endpoint, error) {
+func NewMessagePackWebsocketClient(url, origin string) (Client, error) {
 	return newWebsocketClient(url, msgpackWebsocketProtocol, origin, new(MessagePackSerializer), websocket.BinaryMessage)
 }
 
-func newWebsocketClient(url, protocol, origin string, serializer Serializer, payloadType int) (Endpoint, error) {
+func newWebsocketClient(url, protocol, origin string, serializer Serializer, payloadType int) (Client, error) {
 	dialer := websocket.Dialer{
 		Subprotocols: []string{protocol},
 	}
@@ -27,7 +27,7 @@ func newWebsocketClient(url, protocol, origin string, serializer Serializer, pay
 	if err != nil {
 		return nil, err
 	}
-	ep := &websocketEndpoint{
+	ep := &websocketClient{
 		conn:        conn,
 		messages:    make(chan Message, 10),
 		serializer:  serializer,
@@ -53,16 +53,16 @@ func newWebsocketClient(url, protocol, origin string, serializer Serializer, pay
 	return ep, nil
 }
 
-func (ep *websocketEndpoint) Send(msg Message) error {
+func (ep *websocketClient) Send(msg Message) error {
 	b, err := ep.serializer.Serialize(msg)
 	if err != nil {
 		return err
 	}
 	return ep.conn.WriteMessage(ep.payloadType, b)
 }
-func (ep *websocketEndpoint) Receive() <-chan Message {
+func (ep *websocketClient) Receive() <-chan Message {
 	return ep.messages
 }
-func (ep *websocketEndpoint) Close() error {
+func (ep *websocketClient) Close() error {
 	return ep.conn.Close()
 }

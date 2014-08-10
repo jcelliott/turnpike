@@ -23,7 +23,7 @@ type client struct {
 }
 
 type Router interface {
-	Accept(Endpoint) error
+	Accept(Client) error
 	Close() error
 	RegisterRealm(URI, Realm) error
 }
@@ -106,19 +106,19 @@ func (r *DefaultRouter) handleSession(sess Session, realm URI) {
 
 		// Broker messages
 		case *Publish:
-			if pub, ok := sess.Endpoint.(Publisher); ok {
+			if pub, ok := sess.Client.(Publisher); ok {
 				r.broker(realm).Publish(pub, v)
 			} else {
 				r.invalidSessionError(sess, v, v.Request)
 			}
 		case *Subscribe:
-			if sub, ok := sess.Endpoint.(Subscriber); ok {
+			if sub, ok := sess.Client.(Subscriber); ok {
 				r.broker(realm).Subscribe(sub, v)
 			} else {
 				r.invalidSessionError(sess, v, v.Request)
 			}
 		case *Unsubscribe:
-			if sub, ok := sess.Endpoint.(Subscriber); ok {
+			if sub, ok := sess.Client.(Subscriber); ok {
 				r.broker(realm).Unsubscribe(sub, v)
 			} else {
 				r.invalidSessionError(sess, v, v.Request)
@@ -126,25 +126,25 @@ func (r *DefaultRouter) handleSession(sess Session, realm URI) {
 
 		// Dealer messages
 		case *Register:
-			if callee, ok := sess.Endpoint.(Callee); ok {
+			if callee, ok := sess.Client.(Callee); ok {
 				r.dealer(realm).Register(callee, v)
 			} else {
 				r.invalidSessionError(sess, v, v.Request)
 			}
 		case *Unregister:
-			if callee, ok := sess.Endpoint.(Callee); ok {
+			if callee, ok := sess.Client.(Callee); ok {
 				r.dealer(realm).Unregister(callee, v)
 			} else {
 				r.invalidSessionError(sess, v, v.Request)
 			}
 		case *Call:
-			if caller, ok := sess.Endpoint.(Caller); ok {
+			if caller, ok := sess.Client.(Caller); ok {
 				r.dealer(realm).Call(caller, v)
 			} else {
 				r.invalidSessionError(sess, v, v.Request)
 			}
 		case *Yield:
-			if callee, ok := sess.Endpoint.(Callee); ok {
+			if callee, ok := sess.Client.(Callee); ok {
 				r.dealer(realm).Yield(callee, v)
 			} else {
 				r.invalidSessionError(sess, v, v.Request)
@@ -164,44 +164,44 @@ func (r *DefaultRouter) invalidSessionError(sess Session, msg Message, req ID) {
 	})
 }
 
-func (r *DefaultRouter) Accept(ep Endpoint) error {
+func (r *DefaultRouter) Accept(client Client) error {
 	if r.closing {
-		ep.Send(&Abort{Reason: WAMP_ERROR_SYSTEM_SHUTDOWN})
-		ep.Close()
+		client.Send(&Abort{Reason: WAMP_ERROR_SYSTEM_SHUTDOWN})
+		client.Close()
 		return fmt.Errorf("Router is closing, no new connections are allowed")
 	}
 
-	c := ep.Receive()
+	c := client.Receive()
 
 	select {
 	case <-time.After(5 * time.Second):
-		ep.Close()
+		client.Close()
 		return fmt.Errorf("Timeout on receiving messages")
 	case msg, open := <-c:
 		if !open {
-			ep.Close()
+			client.Close()
 			return fmt.Errorf("No messages received")
 		}
 		if hello, ok := msg.(*Hello); !ok {
-			if err := ep.Send(&Abort{Reason: WAMP_ERROR_NOT_AUTHORIZED}); err != nil {
+			if err := client.Send(&Abort{Reason: WAMP_ERROR_NOT_AUTHORIZED}); err != nil {
 				return err
 			}
-			return ep.Close()
+			return client.Close()
 		} else if _, ok := r.realms[hello.Realm]; !ok {
 			// TODO: handle invalid realm more gracefully
-			if err := ep.Send(&Abort{Reason: WAMP_ERROR_NO_SUCH_REALM}); err != nil {
+			if err := client.Send(&Abort{Reason: WAMP_ERROR_NO_SUCH_REALM}); err != nil {
 				return err
 			}
-			return ep.Close()
+			return client.Close()
 		} else {
 			id := NewID()
 
 			// TODO: challenge
-			if err := ep.Send(&Welcome{Id: id}); err != nil {
+			if err := client.Send(&Welcome{Id: id}); err != nil {
 				return err
 			}
 
-			sess := Session{Endpoint: ep, Id: id, kill: make(chan URI, 1)}
+			sess := Session{Client: client, Id: id, kill: make(chan URI, 1)}
 			r.clients[hello.Realm] = append(r.clients[hello.Realm], sess)
 			go r.handleSession(sess, hello.Realm)
 		}

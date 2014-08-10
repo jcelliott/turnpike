@@ -5,75 +5,75 @@ import "time"
 
 const testRealm = URI("test.realm")
 
-type basicEndpoint struct {
-	*localEndpoint
+type basicClient struct {
+	*localClient
 }
 
-func (ep *basicEndpoint) Receive() <-chan Message {
-	return ep.incoming
+func (client *basicClient) Receive() <-chan Message {
+	return client.incoming
 }
-func (ep *basicEndpoint) Send(msg Message) error {
+func (client *basicClient) Send(msg Message) error {
 	if msg.MessageType() == GOODBYE {
-		ep.localEndpoint.Send(&Goodbye{})
+		client.localClient.Send(&Goodbye{})
 	}
-	return ep.localEndpoint.Send(msg)
+	return client.localClient.Send(msg)
 }
 
 // satisfy ErrorHandler
-func (ep *basicEndpoint) SendError(msg *Error) { ep.Send(msg) }
+func (client *basicClient) SendError(msg *Error) { client.Send(msg) }
 
 // satisfy Publisher
-func (ep *basicEndpoint) SendPublished(msg *Published) { ep.Send(msg) }
+func (client *basicClient) SendPublished(msg *Published) { client.Send(msg) }
 
 // satisfy Subscriber
-func (ep *basicEndpoint) SendEvent(msg *Event)               { ep.Send(msg) }
-func (ep *basicEndpoint) SendUnsubscribed(msg *Unsubscribed) { ep.Send(msg) }
-func (ep *basicEndpoint) SendSubscribed(msg *Subscribed)     { ep.Send(msg) }
+func (client *basicClient) SendEvent(msg *Event)               { client.Send(msg) }
+func (client *basicClient) SendUnsubscribed(msg *Unsubscribed) { client.Send(msg) }
+func (client *basicClient) SendSubscribed(msg *Subscribed)     { client.Send(msg) }
 
 // satisfy Callee
-func (ep *basicEndpoint) SendRegistered(msg *Registered)     { ep.Send(msg) }
-func (ep *basicEndpoint) SendUnregistered(msg *Unregistered) { ep.Send(msg) }
-func (ep *basicEndpoint) SendInvocation(msg *Invocation)     { ep.Send(msg) }
+func (client *basicClient) SendRegistered(msg *Registered)     { client.Send(msg) }
+func (client *basicClient) SendUnregistered(msg *Unregistered) { client.Send(msg) }
+func (client *basicClient) SendInvocation(msg *Invocation)     { client.Send(msg) }
 
 // satisfy Caller
-func (ep *basicEndpoint) SendResult(msg *Result) { ep.Send(msg) }
+func (client *basicClient) SendResult(msg *Result) { client.Send(msg) }
 
-func (ep *basicEndpoint) Close() error {
-	close(ep.outgoing)
+func (client *basicClient) Close() error {
+	close(client.outgoing)
 	return nil
 }
 
-func basicConnect(t *testing.T, ep *basicEndpoint, server Endpoint) *DefaultRouter {
+func basicConnect(t *testing.T, client *basicClient, server Client) *DefaultRouter {
 	r := NewDefaultRouter()
 	r.RegisterRealm(testRealm, NewDefaultRealm())
 
-	ep.Send(&Hello{Realm: testRealm})
+	client.Send(&Hello{Realm: testRealm})
 	if err := r.Accept(server); err != nil {
 		t.Fatal(err)
 	}
 
-	if len(ep.incoming) != 1 {
-		t.Fatal("Expected 1 message in the handshake, received %d", len(ep.incoming))
+	if len(client.incoming) != 1 {
+		t.Fatal("Expected 1 message in the handshake, received %d", len(client.incoming))
 	}
 
-	if msg := <-ep.incoming; msg.MessageType() != WELCOME {
+	if msg := <-client.incoming; msg.MessageType() != WELCOME {
 		t.Fatal("Expected first message sent to be a welcome message")
 	}
 	return r
 }
 
 func TestHandshake(t *testing.T) {
-	client, server := pipe()
+	c, server := pipe()
 
-	ep := &basicEndpoint{client}
-	r := basicConnect(t, ep, server)
+	client := &basicClient{c}
+	r := basicConnect(t, client, server)
 	defer r.Close()
 
-	ep.outgoing <- &Goodbye{}
+	client.outgoing <- &Goodbye{}
 	select {
 	case <-time.After(time.Millisecond):
 		t.Errorf("No goodbye message received after sending goodbye")
-	case msg := <-ep.incoming:
+	case msg := <-client.incoming:
 		if _, ok := msg.(*Goodbye); !ok {
 			t.Errorf("Expected GOODBYE, actually got: %s", msg.MessageType())
 		}
@@ -84,35 +84,35 @@ func TestInvalidRealm(t *testing.T) {
 	r := NewDefaultRouter()
 	defer r.Close()
 
-	client, server := pipe()
+	c, server := pipe()
 
-	ep := &basicEndpoint{client}
-	ep.Send(&Hello{Realm: "does.not.exist"})
+	client := &basicClient{c}
+	client.Send(&Hello{Realm: "does.not.exist"})
 	err := r.Accept(server)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(ep.incoming) != 1 {
-		t.Fatalf("Expected a single message in the handshake, received %d", len(ep.incoming))
+	if len(client.incoming) != 1 {
+		t.Fatalf("Expected a single message in the handshake, received %d", len(client.incoming))
 	}
 
-	if msg := <-ep.incoming; msg.MessageType() != ABORT {
+	if msg := <-client.incoming; msg.MessageType() != ABORT {
 		t.Errorf("Expected the handshake to be aborted")
 	}
 }
 
 func TestPublishNoAcknowledge(t *testing.T) {
-	client, server := pipe()
-	ep := &basicEndpoint{client}
-	r := basicConnect(t, ep, server)
+	c, server := pipe()
+	client := &basicClient{c}
+	r := basicConnect(t, client, server)
 	defer r.Close()
 
 	id := NewID()
-	ep.outgoing <- &Publish{Request: id, Options: map[string]interface{}{"acknowledge": false}, Topic: "some.uri"}
+	client.outgoing <- &Publish{Request: id, Options: map[string]interface{}{"acknowledge": false}, Topic: "some.uri"}
 	select {
 	case <-time.After(time.Millisecond):
-	case msg := <-ep.incoming:
+	case msg := <-client.incoming:
 		if _, ok := msg.(*Published); ok {
 			t.Fatalf("Sent acknowledge=false, but received PUBLISHED: %s", msg.MessageType())
 		}
@@ -120,16 +120,16 @@ func TestPublishNoAcknowledge(t *testing.T) {
 }
 
 func TestPublishAbsentAcknowledge(t *testing.T) {
-	client, server := pipe()
-	ep := &basicEndpoint{client}
-	r := basicConnect(t, ep, server)
+	c, server := pipe()
+	client := &basicClient{c}
+	r := basicConnect(t, client, server)
 	defer r.Close()
 
 	id := NewID()
-	ep.outgoing <- &Publish{Request: id, Topic: "some.uri"}
+	client.outgoing <- &Publish{Request: id, Topic: "some.uri"}
 	select {
 	case <-time.After(time.Millisecond):
-	case msg := <-ep.incoming:
+	case msg := <-client.incoming:
 		if _, ok := msg.(*Published); ok {
 			t.Fatalf("Sent acknowledge=false, but received PUBLISHED: %s", msg.MessageType())
 		}
@@ -137,17 +137,17 @@ func TestPublishAbsentAcknowledge(t *testing.T) {
 }
 
 func TestPublishAcknowledge(t *testing.T) {
-	client, server := pipe()
-	ep := &basicEndpoint{client}
-	r := basicConnect(t, ep, &basicEndpoint{server})
+	c, server := pipe()
+	client := &basicClient{c}
+	r := basicConnect(t, client, &basicClient{server})
 	defer r.Close()
 
 	id := NewID()
-	ep.outgoing <- &Publish{Request: id, Options: map[string]interface{}{"acknowledge": true}, Topic: "some.uri"}
+	client.outgoing <- &Publish{Request: id, Options: map[string]interface{}{"acknowledge": true}, Topic: "some.uri"}
 	select {
 	case <-time.After(time.Millisecond):
 		t.Error("Sent acknowledge=true, but timed out waiting for PUBLISHED")
-	case msg := <-ep.incoming:
+	case msg := <-client.incoming:
 		if pub, ok := msg.(*Published); !ok {
 			t.Errorf("Sent acknowledge=true, but received %s instead of PUBLISHED: %+v", msg.MessageType(), msg)
 		} else if pub.Request != id {
@@ -160,8 +160,8 @@ func TestSubscribe(t *testing.T) {
 	const testTopic = URI("some.uri")
 
 	subClient, subServer := pipe()
-	sub := &basicEndpoint{subClient}
-	r := basicConnect(t, sub, &basicEndpoint{subServer})
+	sub := &basicClient{subClient}
+	r := basicConnect(t, sub, &basicClient{subServer})
 	defer r.Close()
 
 	subscribeId := NewID()
@@ -182,9 +182,9 @@ func TestSubscribe(t *testing.T) {
 	}
 
 	pubClient, pubServer := pipe()
-	pub := &basicEndpoint{pubClient}
+	pub := &basicClient{pubClient}
 	pub.Send(&Hello{Realm: testRealm})
-	if err := r.Accept(&basicEndpoint{pubServer}); err != nil {
+	if err := r.Accept(&basicClient{pubServer}); err != nil {
 		t.Fatal("Error pubing publisher")
 	}
 	pubId := NewID()
@@ -208,8 +208,8 @@ type basicCallee struct{}
 func TestCall(t *testing.T) {
 	const testProcedure = URI("turnpike.test.endpoint")
 	calleeClient, calleeServer := pipe()
-	callee := &basicEndpoint{calleeClient}
-	r := basicConnect(t, callee, &basicEndpoint{calleeServer})
+	callee := &basicClient{calleeClient}
+	r := basicConnect(t, callee, &basicClient{calleeServer})
 	defer r.Close()
 
 	registerId := NewID()
@@ -231,9 +231,9 @@ func TestCall(t *testing.T) {
 	}
 
 	callerClient, callerServer := pipe()
-	caller := &basicEndpoint{callerClient}
+	caller := &basicClient{callerClient}
 	caller.Send(&Hello{Realm: testRealm})
-	if err := r.Accept(&basicEndpoint{callerServer}); err != nil {
+	if err := r.Accept(&basicClient{callerServer}); err != nil {
 		t.Fatal("Error connecting caller")
 	}
 	if msg := <-caller.incoming; msg.MessageType() != WELCOME {
