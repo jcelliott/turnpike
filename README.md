@@ -1,4 +1,4 @@
-Turnpike
+turnpike [![Build Status](https://drone.io/github.com/jcelliott/turnpike/status.png)](https://drone.io/github.com/jcelliott/turnpike/latest)
 ========
 
 Go implementation of [WAMP](http://www.wamp.ws/) - The Web Application Messaging Protocol
