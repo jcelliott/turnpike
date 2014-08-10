@@ -1,4 +1,4 @@
-package wampv2
+package turnpike
 
 import (
 	"reflect"
@@ -14,7 +14,7 @@ func TestJSONDeserialize(t *testing.T) {
 	}
 
 	tests := []test{
-		test{
+		{
 			`[1,"some.realm",{}]`,
 			&Hello{"some.realm", make(map[string]interface{})},
 			2,

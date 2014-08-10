@@ -1,4 +1,4 @@
-package wampv2
+package turnpike
 
 import (
 	"fmt"

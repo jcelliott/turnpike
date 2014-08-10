@@ -1,4 +1,4 @@
-package wampv2
+package turnpike
 
 type Sender interface {
 	// Send a message to the client

@@ -1,4 +1,4 @@
-package wampv2
+package turnpike
 
 func spliceSubscribers(subs []Subscriber, i int) []Subscriber {
 	if i == len(subs)-1 {
@@ -68,6 +68,8 @@ func (br *DefaultBroker) Publish(pub Publisher, msg *Publish) {
 		event := evtTemplate
 		event.Subscription = id
 		sub.SendEvent(&event)
+		// TODO: publisher should not receive event, even if subscribed.
+		// see: https://github.com/tavendo/WAMP/blob/master/spec/basic.md#event-1
 	}
 
 	// only send published message if acknowledge is present and set to true

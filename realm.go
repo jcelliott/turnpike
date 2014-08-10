@@ -1,4 +1,4 @@
-package wampv2
+package turnpike
 
 // Realm is the interface all WAMP realms must implement.
 type Realm interface {
