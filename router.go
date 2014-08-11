@@ -18,12 +18,8 @@ func (e unexpectedMessage) Error() string {
 	return fmt.Sprintf("Unexpected message: %s; expected %s", e.rec, e.exp)
 }
 
-type client struct {
-	kill chan<- URI
-}
-
 type Router interface {
-	Accept(Client) error
+	Accept(Peer) error
 	Close() error
 	RegisterRealm(URI, Realm) error
 }
@@ -99,6 +95,8 @@ func (r *DefaultRouter) handleSession(sess Session, realm URI) {
 			return
 		}
 
+		log.Println(sess.Id, msg.MessageType(), msg)
+
 		switch v := msg.(type) {
 		case *Goodbye:
 			sess.Send(&Goodbye{Reason: WAMP_ERROR_GOODBYE_AND_OUT})
@@ -106,65 +104,29 @@ func (r *DefaultRouter) handleSession(sess Session, realm URI) {
 
 		// Broker messages
 		case *Publish:
-			if pub, ok := sess.Client.(Publisher); ok {
-				r.broker(realm).Publish(pub, v)
-			} else {
-				r.invalidSessionError(sess, v, v.Request)
-			}
+			r.broker(realm).Publish(sess.Peer, v)
 		case *Subscribe:
-			if sub, ok := sess.Client.(Subscriber); ok {
-				r.broker(realm).Subscribe(sub, v)
-			} else {
-				r.invalidSessionError(sess, v, v.Request)
-			}
+			r.broker(realm).Subscribe(sess.Peer, v)
 		case *Unsubscribe:
-			if sub, ok := sess.Client.(Subscriber); ok {
-				r.broker(realm).Unsubscribe(sub, v)
-			} else {
-				r.invalidSessionError(sess, v, v.Request)
-			}
+			r.broker(realm).Unsubscribe(sess.Peer, v)
 
 		// Dealer messages
 		case *Register:
-			if callee, ok := sess.Client.(Callee); ok {
-				r.dealer(realm).Register(callee, v)
-			} else {
-				r.invalidSessionError(sess, v, v.Request)
-			}
+			r.dealer(realm).Register(sess.Peer, v)
 		case *Unregister:
-			if callee, ok := sess.Client.(Callee); ok {
-				r.dealer(realm).Unregister(callee, v)
-			} else {
-				r.invalidSessionError(sess, v, v.Request)
-			}
+			r.dealer(realm).Unregister(sess.Peer, v)
 		case *Call:
-			if caller, ok := sess.Client.(Caller); ok {
-				r.dealer(realm).Call(caller, v)
-			} else {
-				r.invalidSessionError(sess, v, v.Request)
-			}
+			r.dealer(realm).Call(sess.Peer, v)
 		case *Yield:
-			if callee, ok := sess.Client.(Callee); ok {
-				r.dealer(realm).Yield(callee, v)
-			} else {
-				r.invalidSessionError(sess, v, v.Request)
-			}
+			r.dealer(realm).Yield(sess.Peer, v)
 
 		default:
-			fmt.Println("Unhandled message:", v.MessageType())
+			log.Println("Unhandled message:", v.MessageType())
 		}
 	}
 }
 
-func (r *DefaultRouter) invalidSessionError(sess Session, msg Message, req ID) {
-	sess.Send(&Error{
-		Type:    msg.MessageType(),
-		Request: req,
-		Error:   WAMP_ERROR_NOT_AUTHORIZED,
-	})
-}
-
-func (r *DefaultRouter) Accept(client Client) error {
+func (r *DefaultRouter) Accept(client Peer) error {
 	if r.closing {
 		client.Send(&Abort{Reason: WAMP_ERROR_SYSTEM_SHUTDOWN})
 		client.Close()
@@ -200,8 +162,9 @@ func (r *DefaultRouter) Accept(client Client) error {
 			if err := client.Send(&Welcome{Id: id}); err != nil {
 				return err
 			}
+			log.Println("Established session:", id)
 
-			sess := Session{Client: client, Id: id, kill: make(chan URI, 1)}
+			sess := Session{Peer: client, Id: id, kill: make(chan URI, 1)}
 			r.clients[hello.Realm] = append(r.clients[hello.Realm], sess)
 			go r.handleSession(sess, hello.Realm)
 		}

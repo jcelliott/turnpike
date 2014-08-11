@@ -8,6 +8,11 @@ import (
 	"github.com/ugorji/go/codec"
 )
 
+const (
+	JSON = iota
+	MSGPACK
+)
+
 type Serializer interface {
 	Serialize(Message) ([]byte, error)
 	Deserialize([]byte) (Message, error)

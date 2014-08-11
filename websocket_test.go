@@ -33,7 +33,7 @@ func TestWSHandshakeJSON(t *testing.T) {
 	port, r, closer := newWebsocketServer(t)
 	defer closer.Close()
 
-	client, err := NewJSONWebsocketClient(fmt.Sprintf("ws://localhost:%d/", port), "http://localhost")
+	client, err := NewWebsocketPeer(JSON, fmt.Sprintf("ws://localhost:%d/", port), "http://localhost")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestWSHandshakeMsgpack(t *testing.T) {
 	port, r, closer := newWebsocketServer(t)
 	defer closer.Close()
 
-	client, err := NewMessagePackWebsocketClient(fmt.Sprintf("ws://localhost:%d/", port), "http://localhost")
+	client, err := NewWebsocketPeer(MSGPACK, fmt.Sprintf("ws://localhost:%d/", port), "http://localhost")
 	if err != nil {
 		t.Fatal(err)
 	}

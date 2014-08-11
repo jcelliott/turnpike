@@ -9,10 +9,7 @@ type TestCallee struct {
 	received Message
 }
 
-func (c *TestCallee) SendError(msg *Error)               { c.received = msg }
-func (c *TestCallee) SendRegistered(msg *Registered)     { c.received = msg }
-func (c *TestCallee) SendUnregistered(msg *Unregistered) { c.received = msg }
-func (c *TestCallee) SendInvocation(msg *Invocation)     { c.received = msg }
+func (c *TestCallee) Send(msg Message) error { c.received = msg; return nil }
 
 func TestRegister(t *testing.T) {
 	Convey("Registering a procedure", t, func() {

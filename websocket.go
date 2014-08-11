@@ -1,25 +1,33 @@
 package turnpike
 
 import (
+	"fmt"
 	"github.com/gorilla/websocket"
 )
 
-type websocketClient struct {
+type websocketPeer struct {
 	conn        *websocket.Conn
 	serializer  Serializer
 	messages    chan Message
 	payloadType int
 }
 
-func NewJSONWebsocketClient(url, origin string) (Client, error) {
-	return newWebsocketClient(url, jsonWebsocketProtocol, origin, new(JSONSerializer), websocket.TextMessage)
+func NewWebsocketPeer(serialization int, url, origin string) (Peer, error) {
+	switch serialization {
+	case JSON:
+		return newWebsocketPeer(url, jsonWebsocketProtocol, origin,
+			new(JSONSerializer), websocket.TextMessage,
+		)
+	case MSGPACK:
+		return newWebsocketPeer(url, msgpackWebsocketProtocol, origin,
+			new(MessagePackSerializer), websocket.BinaryMessage,
+		)
+	default:
+		return nil, fmt.Errorf("Unsupported serialization: %s", serialization)
+	}
 }
 
-func NewMessagePackWebsocketClient(url, origin string) (Client, error) {
-	return newWebsocketClient(url, msgpackWebsocketProtocol, origin, new(MessagePackSerializer), websocket.BinaryMessage)
-}
-
-func newWebsocketClient(url, protocol, origin string, serializer Serializer, payloadType int) (Client, error) {
+func newWebsocketPeer(url, protocol, origin string, serializer Serializer, payloadType int) (Peer, error) {
 	dialer := websocket.Dialer{
 		Subprotocols: []string{protocol},
 	}
@@ -27,7 +35,7 @@ func newWebsocketClient(url, protocol, origin string, serializer Serializer, pay
 	if err != nil {
 		return nil, err
 	}
-	ep := &websocketClient{
+	ep := &websocketPeer{
 		conn:        conn,
 		messages:    make(chan Message, 10),
 		serializer:  serializer,
@@ -53,16 +61,16 @@ func newWebsocketClient(url, protocol, origin string, serializer Serializer, pay
 	return ep, nil
 }
 
-func (ep *websocketClient) Send(msg Message) error {
+func (ep *websocketPeer) Send(msg Message) error {
 	b, err := ep.serializer.Serialize(msg)
 	if err != nil {
 		return err
 	}
 	return ep.conn.WriteMessage(ep.payloadType, b)
 }
-func (ep *websocketClient) Receive() <-chan Message {
+func (ep *websocketPeer) Receive() <-chan Message {
 	return ep.messages
 }
-func (ep *websocketClient) Close() error {
+func (ep *websocketPeer) Close() error {
 	return ep.conn.Close()
 }

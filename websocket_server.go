@@ -52,7 +52,19 @@ func NewWebsocketServer(r Router) *WebsocketServer {
 	return s
 }
 
+// Creates a new WebsocketServer with a single realm
+func NewBasicWebsocketServer(realm URI) *WebsocketServer {
+	log.Println("NewBasicWebsocketServer")
+	r := NewDefaultRouter()
+	r.RegisterRealm(realm, NewDefaultRealm())
+	s := NewWebsocketServer(r)
+	s.RegisterProtocol(jsonWebsocketProtocol, websocket.TextMessage, new(JSONSerializer))
+	s.RegisterProtocol(msgpackWebsocketProtocol, websocket.BinaryMessage, new(MessagePackSerializer))
+	return s
+}
+
 func (s *WebsocketServer) RegisterProtocol(proto string, payloadType int, serializer Serializer) error {
+	log.Println("RegisterProtocol:", proto)
 	if payloadType != websocket.TextMessage && payloadType != websocket.BinaryMessage {
 		return invalidPayload(payloadType)
 	}
@@ -65,6 +77,7 @@ func (s *WebsocketServer) RegisterProtocol(proto string, payloadType int, serial
 }
 
 func (s *WebsocketServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	log.Println("WebsocketServer.ServeHTTP", r.Method, r.RequestURI)
 	// TODO: subprotocol?
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -96,7 +109,7 @@ func (s *WebsocketServer) handleWebsocket(conn *websocket.Conn) {
 		}
 	}
 
-	client := websocketClient{
+	peer := websocketPeer{
 		conn:        conn,
 		serializer:  serializer,
 		messages:    make(chan Message, 10),
@@ -114,10 +127,10 @@ func (s *WebsocketServer) handleWebsocket(conn *websocket.Conn) {
 				if err != nil {
 					// TODO: handle error
 				} else {
-					client.messages <- msg
+					peer.messages <- msg
 				}
 			}
 		}
 	}()
-	s.router.Accept(&client)
+	s.router.Accept(&peer)
 }
