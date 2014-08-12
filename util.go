@@ -1,6 +1,9 @@
 package turnpike
 
-import "math/rand"
+import (
+	"math/rand"
+	"time"
+)
 
 const (
 	// Peer is not authorized to access the given resource. This might be triggered by a session trying to join a realm, a publish, subscribe, register or call.
@@ -40,6 +43,10 @@ const (
 const (
 	MAX_ID = 2 << 53
 )
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 func NewID() ID {
 	return ID(rand.Intn(MAX_ID))

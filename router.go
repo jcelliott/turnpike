@@ -97,31 +97,31 @@ func (r *DefaultRouter) handleSession(sess Session, realm URI) {
 
 		log.Println(sess.Id, msg.MessageType(), msg)
 
-		switch v := msg.(type) {
+		switch msg := msg.(type) {
 		case *Goodbye:
 			sess.Send(&Goodbye{Reason: WAMP_ERROR_GOODBYE_AND_OUT})
 			return
 
 		// Broker messages
 		case *Publish:
-			r.broker(realm).Publish(sess.Peer, v)
+			r.broker(realm).Publish(sess.Peer, msg)
 		case *Subscribe:
-			r.broker(realm).Subscribe(sess.Peer, v)
+			r.broker(realm).Subscribe(sess.Peer, msg)
 		case *Unsubscribe:
-			r.broker(realm).Unsubscribe(sess.Peer, v)
+			r.broker(realm).Unsubscribe(sess.Peer, msg)
 
 		// Dealer messages
 		case *Register:
-			r.dealer(realm).Register(sess.Peer, v)
+			r.dealer(realm).Register(sess.Peer, msg)
 		case *Unregister:
-			r.dealer(realm).Unregister(sess.Peer, v)
+			r.dealer(realm).Unregister(sess.Peer, msg)
 		case *Call:
-			r.dealer(realm).Call(sess.Peer, v)
+			r.dealer(realm).Call(sess.Peer, msg)
 		case *Yield:
-			r.dealer(realm).Yield(sess.Peer, v)
+			r.dealer(realm).Yield(sess.Peer, msg)
 
 		default:
-			log.Println("Unhandled message:", v.MessageType())
+			log.Println("Unhandled message:", msg.MessageType())
 		}
 	}
 }
