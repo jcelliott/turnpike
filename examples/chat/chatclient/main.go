@@ -1,37 +1,72 @@
 package main
 
 import (
-	"fmt"
 	"log"
-	"time"
+	"os"
 
-	"github.com/jcelliott/turnpike"
+	"gopkg.in/jcelliott/turnpike.v2"
 )
 
+const (
+	MAX_NAME_LENGTH    = 32
+	MAX_MESSAGE_LENGTH = 256
+	MESSAGE_WIN_SIZE   = 3
+	PROMPT             = "> "
+)
+
+type message struct {
+	From, Message string
+}
+
 func main() {
+	if len(os.Args) != 2 {
+		log.Fatalf("Usage: %s <username>", os.Args[0])
+	}
+
+	if fi, err := os.Stderr.Stat(); err != nil {
+		log.Fatal("Error checking stderr:", err)
+	} else if fi.Mode()&os.ModeDevice != 0 {
+		stderr, err := os.Open(os.DevNull)
+		if err != nil {
+			log.Fatal("Error redirecting stderr")
+		}
+		log.SetOutput(stderr)
+	}
+
+	username := os.Args[1]
+
 	// turnpike.Debug()
 	c, err := turnpike.NewWebsocketClient(turnpike.JSON, "ws://localhost:8000/", "turnpike.examples", turnpike.ALL)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	messages := make(chan message)
 	if err := c.Subscribe("chat", func(args []interface{}, kwargs map[string]interface{}) {
-		fmt.Println(time.Now().Format(time.Stamp), args[0])
+		if len(args) == 2 {
+			if from, ok := args[0].(string); !ok {
+				log.Println("First argument not a string:", args[0])
+			} else if msg, ok := args[1].(string); !ok {
+				log.Println("Second argument not a string:", args[1])
+			} else {
+				log.Printf("%s: %s", from, msg)
+				messages <- message{From: from, Message: msg}
+			}
+		}
 	}); err != nil {
 		log.Fatalln("Error subscribing to chat channel:", err)
 	}
 
-	sendChatMsg(c, "hello world")
-	time.Sleep(10 * time.Second)
-	sendChatMsg(c, "goodbyte world")
-	time.Sleep(10 * time.Second)
+	outgoing := make(chan message, 10)
+	go sendMessages(c, outgoing)
+	cw := newChatWin(username, outgoing)
+	cw.dialog(messages)
 }
 
-func sendChatMsg(c *turnpike.Client, msg string) {
-	if err := c.Publish("chat", []interface{}{msg}, nil); err != nil {
-		log.Println("Error sending message:", err)
-	} else {
-		// server shouldn't print our published message
-		// log.Println(time.Now(), msg)
+func sendMessages(c *turnpike.Client, messages chan message) {
+	for msg := range messages {
+		if err := c.Publish("chat", []interface{}{msg.From, msg.Message}, nil); err != nil {
+			log.Println("Error sending message:", err)
+		}
 	}
 }
