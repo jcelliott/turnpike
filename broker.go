@@ -50,6 +50,7 @@ func (br *DefaultBroker) Publish(pub Sender, msg *Publish) {
 		Publication: pubId,
 		Arguments:   msg.Arguments,
 		ArgumentsKw: msg.ArgumentsKw,
+		Details:     make(map[string]interface{}),
 	}
 	for id, sub := range br.routes[msg.Topic] {
 		// shallow-copy the template
