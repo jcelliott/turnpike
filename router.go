@@ -1,7 +1,9 @@
 package turnpike
 
-import "fmt"
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 type realmExists string
 
@@ -159,7 +161,16 @@ func (r *DefaultRouter) Accept(client Peer) error {
 			id := NewID()
 
 			// TODO: challenge
-			if err := client.Send(&Welcome{Id: id}); err != nil {
+			msg := &Welcome{
+				Id: id,
+				Details: map[string]interface{}{
+					"roles": map[string]struct{}{
+						"broker": struct{}{},
+						"dealer": struct{}{},
+					},
+				},
+			}
+			if err := client.Send(msg); err != nil {
 				return err
 			}
 			log.Println("Established session:", id)
