@@ -12,6 +12,11 @@ type Peer interface {
 	// Closes the peer connection and any channel returned from Receive().
 	// Multiple calls to Close() will have no effect.
 	Close() error
+	// TODO: implement this
+	// TODO: rename this to Receive and Receive to ReceiveChan or similar
+	// ReceiveMsg returns a single message from the peer
+	// ReceiveMsg() Message
+
 	// Receive returns a channel of messages coming from the peer.
 	Receive() <-chan Message
 }

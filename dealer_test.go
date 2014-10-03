@@ -1,8 +1,9 @@
 package turnpike
 
 import (
-	. "github.com/smartystreets/goconvey/convey"
 	"testing"
+
+	. "github.com/smartystreets/goconvey/convey"
 )
 
 type TestCallee struct {

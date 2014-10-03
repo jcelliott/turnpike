@@ -196,10 +196,10 @@ func (msg *Abort) MessageType() MessageType {
 	return ABORT
 }
 
-// [CHALLENGE, Challenge|string, Extra|dict]
+// [CHALLENGE, AuthMethod|string, Extra|dict]
 type Challenge struct {
-	Challenge string
-	Extra     map[string]interface{}
+	AuthMethod string
+	Extra      map[string]interface{}
 }
 
 func (msg *Challenge) MessageType() MessageType {

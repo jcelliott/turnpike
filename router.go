@@ -5,6 +5,13 @@ import (
 	"time"
 )
 
+var defaultWelcomeDetails = map[string]interface{}{
+	"roles": map[string]struct{}{
+		"broker": {},
+		"dealer": {},
+	},
+}
+
 type realmExists string
 
 func (e realmExists) Error() string {
@@ -60,28 +67,22 @@ func (r *DefaultRouter) RegisterRealm(uri URI, realm Realm) error {
 	if _, ok := r.realms[uri]; ok {
 		return realmExists(uri)
 	}
+	if realm.Broker == nil {
+		realm.Broker = NewDefaultBroker()
+	}
+	if realm.Dealer == nil {
+		realm.Dealer = NewDefaultDealer()
+	}
 	r.realms[uri] = realm
 	return nil
 }
 
-func (r *DefaultRouter) broker(realm URI) Broker {
-	if br := r.realms[realm].Broker(); br != nil {
-		return br
-	}
-	return r
-}
-
-func (r *DefaultRouter) dealer(realm URI) Dealer {
-	if d := r.realms[realm].Dealer(); d != nil {
-		return d
-	}
-	return r
-}
-
-func (r *DefaultRouter) handleSession(sess Session, realm URI) {
+func (r *DefaultRouter) handleSession(sess Session, realmURI URI) {
 	defer sess.Close()
 
 	c := sess.Receive()
+	// TODO: what happens if the realm is closed?
+	realm := r.realms[realmURI]
 
 	for {
 		var msg Message
@@ -106,21 +107,21 @@ func (r *DefaultRouter) handleSession(sess Session, realm URI) {
 
 		// Broker messages
 		case *Publish:
-			r.broker(realm).Publish(sess.Peer, msg)
+			realm.Broker.Publish(sess.Peer, msg)
 		case *Subscribe:
-			r.broker(realm).Subscribe(sess.Peer, msg)
+			realm.Broker.Subscribe(sess.Peer, msg)
 		case *Unsubscribe:
-			r.broker(realm).Unsubscribe(sess.Peer, msg)
+			realm.Broker.Unsubscribe(sess.Peer, msg)
 
 		// Dealer messages
 		case *Register:
-			r.dealer(realm).Register(sess.Peer, msg)
+			realm.Dealer.Register(sess.Peer, msg)
 		case *Unregister:
-			r.dealer(realm).Unregister(sess.Peer, msg)
+			realm.Dealer.Unregister(sess.Peer, msg)
 		case *Call:
-			r.dealer(realm).Call(sess.Peer, msg)
+			realm.Dealer.Call(sess.Peer, msg)
 		case *Yield:
-			r.dealer(realm).Yield(sess.Peer, msg)
+			realm.Dealer.Yield(sess.Peer, msg)
 
 		default:
 			log.Println("Unhandled message:", msg.MessageType())
@@ -151,26 +152,34 @@ func (r *DefaultRouter) Accept(client Peer) error {
 				return err
 			}
 			return client.Close()
-		} else if _, ok := r.realms[hello.Realm]; !ok {
+		} else if realm, ok := r.realms[hello.Realm]; !ok {
 			// TODO: handle invalid realm more gracefully
 			if err := client.Send(&Abort{Reason: WAMP_ERROR_NO_SUCH_REALM}); err != nil {
 				return err
 			}
 			return client.Close()
+		} else if welcome, err := r.authenticate(client, realm, hello.Details); err != nil {
+			abort := &Abort{
+				Reason:  WAMP_ERROR_AUTHORIZATION_FAILED,
+				Details: map[string]interface{}{"error": err.Error()},
+			}
+			if err := client.Send(abort); err != nil {
+				return err
+			}
+			return client.Close()
 		} else {
 			id := NewID()
+			welcome.Id = id
 
-			// TODO: challenge
-			msg := &Welcome{
-				Id: id,
-				Details: map[string]interface{}{
-					"roles": map[string]struct{}{
-						"broker": struct{}{},
-						"dealer": struct{}{},
-					},
-				},
+			if welcome.Details == nil {
+				welcome.Details = make(map[string]interface{})
 			}
-			if err := client.Send(msg); err != nil {
+			// add default details to welcome message
+			for k, v := range defaultWelcomeDetails {
+				// TODO: check if key already set
+				welcome.Details[k] = v
+			}
+			if err := client.Send(welcome); err != nil {
 				return err
 			}
 			log.Println("Established session:", id)
@@ -182,4 +191,36 @@ func (r *DefaultRouter) Accept(client Peer) error {
 	}
 
 	return nil
+}
+
+func (r *DefaultRouter) authenticate(client Peer, realm Realm, details map[string]interface{}) (*Welcome, error) {
+	msg, err := realm.Authenticate(details)
+	if err != nil {
+		return nil, err
+	}
+	// we should never get anything besides WELCOME and CHALLENGE
+	if msg.MessageType() == WELCOME {
+		return msg.(*Welcome), nil
+	} else {
+		// Challenge response
+		challenge := msg.(*Challenge)
+		if err := client.Send(challenge); err != nil {
+			return nil, err
+		}
+
+		c := client.Receive()
+		select {
+		case <-time.After(5 * time.Second):
+			return nil, fmt.Errorf("Timeout on receiving messages")
+		case msg, open := <-c:
+			if !open {
+				return nil, fmt.Errorf("No messages received")
+			}
+			if authenticate, ok := msg.(*Authenticate); !ok {
+				return nil, fmt.Errorf("unexpected %s message received", msg.MessageType())
+			} else {
+				return realm.CheckResponse(challenge, authenticate)
+			}
+		}
+	}
 }

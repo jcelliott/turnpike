@@ -26,7 +26,7 @@ func (client *basicPeer) Close() error {
 
 func basicConnect(t *testing.T, client *basicPeer, server Peer) *DefaultRouter {
 	r := NewDefaultRouter()
-	r.RegisterRealm(testRealm, NewDefaultRealm())
+	r.RegisterRealm(testRealm, Realm{})
 
 	client.Send(&Hello{Realm: testRealm})
 	if err := r.Accept(server); err != nil {

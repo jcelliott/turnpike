@@ -56,7 +56,7 @@ func NewWebsocketServer(r Router) *WebsocketServer {
 func NewBasicWebsocketServer(realm URI) *WebsocketServer {
 	log.Println("NewBasicWebsocketServer")
 	r := NewDefaultRouter()
-	r.RegisterRealm(realm, NewDefaultRealm())
+	r.RegisterRealm(realm, Realm{})
 	s := NewWebsocketServer(r)
 	s.RegisterProtocol(jsonWebsocketProtocol, websocket.TextMessage, new(JSONSerializer))
 	s.RegisterProtocol(msgpackWebsocketProtocol, websocket.BinaryMessage, new(MessagePackSerializer))
