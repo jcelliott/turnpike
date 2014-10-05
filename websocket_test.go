@@ -48,22 +48,21 @@ func TestWSHandshakeJSON(t *testing.T) {
 	}
 }
 
-// TODO: fix broken test
-// func TestWSHandshakeMsgpack(t *testing.T) {
-// 	port, r, closer := newWebsocketServer(t)
-// 	defer closer.Close()
-//
-// 	client, err := NewWebsocketPeer(MSGPACK, fmt.Sprintf("ws://localhost:%d/", port), "http://localhost")
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-//
-// 	client.Send(&Hello{Realm: testRealm})
-// 	go r.Accept(client)
-//
-// 	if msg, ok := <-client.Receive(); !ok {
-// 		t.Fatal("Receive buffer closed")
-// 	} else if _, ok := msg.(*Welcome); !ok {
-// 		t.Errorf("Message not Welcome message: %T, %+v", msg, msg)
-// 	}
-// }
+func TestWSHandshakeMsgpack(t *testing.T) {
+	port, r, closer := newWebsocketServer(t)
+	defer closer.Close()
+
+	client, err := NewWebsocketPeer(MSGPACK, fmt.Sprintf("ws://localhost:%d/", port), "http://localhost")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	client.Send(&Hello{Realm: testRealm})
+	go r.Accept(client)
+
+	if msg, ok := <-client.Receive(); !ok {
+		t.Fatal("Receive buffer closed")
+	} else if _, ok := msg.(*Welcome); !ok {
+		t.Errorf("Message not Welcome message: %T, %+v", msg, msg)
+	}
+}
