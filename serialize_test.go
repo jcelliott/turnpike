@@ -3,6 +3,8 @@ package turnpike
 import (
 	"reflect"
 	"testing"
+
+	. "github.com/smartystreets/goconvey/convey"
 )
 
 func TestJSONDeserialize(t *testing.T) {
@@ -31,4 +33,28 @@ func TestJSONDeserialize(t *testing.T) {
 			t.Errorf("%+v != %+v", msg, tst.exp)
 		}
 	}
+}
+
+func TestApplySlice(t *testing.T) {
+    const msgType = PUBLISH
+
+    pubArgs := []string{"hello", "world"}
+    Convey("Deserializing into a message with a slice", t, func () {
+        args := []interface{}{msgType, 123, make(map[string]interface{}), "some.valid.topic", pubArgs}
+        msg, err := apply(msgType, args)
+        Convey("Should not error", func () {
+            So(err, ShouldBeNil)
+        })
+
+        pubMsg, ok := msg.(*Publish)
+        Convey("The message returned should be a publish message", func () {
+            So(ok, ShouldBeTrue)
+        })
+
+        Convey("The message received should have the correct arguments", func () {
+            So(len(pubMsg.Arguments), ShouldEqual, 2)
+            So(pubMsg.Arguments[0], ShouldEqual, pubArgs[0])
+            So(pubMsg.Arguments[1], ShouldEqual, pubArgs[1])
+        })
+    })
 }
