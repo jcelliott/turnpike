@@ -19,6 +19,8 @@ type Client struct {
 	roles          int
 	listeners      map[ID]chan Message
 	events         map[ID]EventHandler
+	calls          map[ID]chan Message
+	welcome        chan Message
 	requestCount   uint
 }
 
@@ -32,13 +34,34 @@ func NewWebsocketClient(serialization int, url string, realm URI, roles int) (*C
 		ReceiveTimeout: 5 * time.Second,
 		roles:          roles,
 		listeners:      make(map[ID]chan Message),
+		calls:          make(map[ID]chan Message),
 		events:         make(map[ID]EventHandler),
+		welcome:        make(chan Message),
 		requestCount:   0,
 	}
 	go c.Receive()
-	// TODO: add roles to hello
-	c.Send(&Hello{Realm: realm})
+
+	roles_map := make(map[string]interface{})
+	roles_map["publisher"] = make(map[string]interface{})
+	roles_map["subscriber"] = make(map[string]interface{})
+	roles_map["callee"] = make(map[string]interface{})
+	roles_map["caller"] = make(map[string]interface{})
+
+	details := make(map[string]interface{})
+	details["roles"] = roles_map
+
+	c.Send(&Hello{Realm: realm, Details: details})
 	return c, nil
+}
+
+func (c *Client) WaitForSession() (msg Message, err error) {
+	// wait to receive WELCOME message
+	select {
+	case msg := <-c.welcome:
+		return msg, nil
+	case <-time.After(c.ReceiveTimeout):
+		return nil, fmt.Errorf("timeout while waiting for message")
+	}
 }
 
 func (c *Client) nextID() ID {
@@ -55,6 +78,17 @@ func (c *Client) Receive() {
 			} else {
 				log.Println("no handler registered for subscription:", msg.Subscription)
 			}
+
+		case *Result:
+			if l, ok := c.calls[msg.Request]; ok {
+				l <- msg
+			} else {
+				log.Println("no handler registered for call:", msg.Request)
+			}
+
+		case *Welcome:
+			c.welcome <- msg
+
 		case *Subscribed:
 			if l, ok := c.listeners[msg.Request]; ok {
 				l <- msg
@@ -119,4 +153,29 @@ func (c *Client) Publish(topic URI, args []interface{}, kwargs map[string]interf
 		Arguments:   args,
 		ArgumentsKw: kwargs,
 	})
+}
+
+func (c *Client) Call(procedure URI, args []interface{}, kwargs map[string]interface{}) (msg Message, err error) {
+	callId := c.nextID()
+	result := make(chan Message, 1)
+
+	c.calls[callId] = result
+
+	if err := c.Send(&Call{
+		Request:     callId,
+		Procedure:   procedure,
+		Options:     make(map[string]interface{}),
+		Arguments:   args,
+		ArgumentsKw: kwargs,
+	}); err != nil {
+		return nil, err
+	}
+
+	// wait to receive RESULT message
+	select {
+	case msg = <-result:
+		return msg, nil
+	case <-time.After(c.ReceiveTimeout):
+		return nil, fmt.Errorf("timeout while waiting for message")
+	}
 }
