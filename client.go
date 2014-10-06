@@ -19,6 +19,7 @@ type Client struct {
 	roles          int
 	listeners      map[ID]chan Message
 	events         map[ID]EventHandler
+	methods        map[ID]MethodHandler
 	calls          map[ID]chan Message
 	welcome        chan Message
 	requestCount   uint
@@ -36,6 +37,7 @@ func NewWebsocketClient(serialization int, url string, realm URI, roles int) (*C
 		listeners:      make(map[ID]chan Message),
 		calls:          make(map[ID]chan Message),
 		events:         make(map[ID]EventHandler),
+		methods:        make(map[ID]MethodHandler),
 		welcome:        make(chan Message),
 		requestCount:   0,
 	}
@@ -79,6 +81,23 @@ func (c *Client) Receive() {
 				log.Println("no handler registered for subscription:", msg.Subscription)
 			}
 
+		case *Invocation:
+			if fn, ok := c.methods[msg.Registration]; ok {
+				go func() {
+					result := fn(msg.Arguments, msg.ArgumentsKw)
+					if err := c.Send(&Yield{
+						Request:     msg.Request,
+						Options:     make(map[string]interface{}),
+						Arguments:   result,
+						ArgumentsKw: make(map[string]interface{}),
+					}); err != nil {
+						log.Fatal(err)
+					}
+				}()
+			} else {
+				log.Println("no handler registered for registration:", msg.Registration)
+			}
+
 		case *Result:
 			if l, ok := c.calls[msg.Request]; ok {
 				l <- msg
@@ -89,12 +108,20 @@ func (c *Client) Receive() {
 		case *Welcome:
 			c.welcome <- msg
 
+		case *Registered:
+			if l, ok := c.listeners[msg.Request]; ok {
+				l <- msg
+			} else {
+				log.Println("no listener for registered:", msg.Request)
+			}
+
 		case *Subscribed:
 			if l, ok := c.listeners[msg.Request]; ok {
 				l <- msg
 			} else {
 				log.Println("no listener for subscribed:", msg.Request)
 			}
+
 		default:
 			log.Println(msg.MessageType(), msg)
 		}
@@ -142,6 +169,33 @@ func (c *Client) Subscribe(topic URI, fn EventHandler) error {
 	} else {
 		// register the event handler with this subscription
 		c.events[subscribed.Subscription] = fn
+	}
+	return nil
+}
+
+type MethodHandler func(args []interface{}, kwargs map[string]interface{}) (result []interface{})
+
+func (c *Client) Register(procedure URI, fn MethodHandler) error {
+	id := c.nextID()
+	c.registerListener(id)
+	if err := c.Send(&Register{
+		Request:   id,
+		Options:   make(map[string]interface{}),
+		Procedure: procedure}); err != nil {
+		return err
+	}
+
+	// wait to receive REGISTERED message
+	msg, err := c.waitOnListener(id)
+	if err != nil {
+		return err
+	} else if e, ok := msg.(*Error); ok {
+		return fmt.Errorf("error registering to procedure '%v': %v", procedure, e.Error)
+	} else if registered, ok := msg.(*Registered); !ok {
+		return fmt.Errorf("unexpected message received: %s", msg.MessageType())
+	} else {
+		// register the event handler with this registration
+		c.methods[registered.Registration] = fn
 	}
 	return nil
 }
