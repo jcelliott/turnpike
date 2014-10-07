@@ -30,6 +30,10 @@ func NewWebsocketClient(serialization int, url string, realm URI, roles int) (*C
 	if err != nil {
 		return nil, err
 	}
+	return NewClientInternal(p, realm, roles)
+}
+
+func NewClientInternal(p Peer, realm URI, roles int) (*Client, error) {
 	c := &Client{
 		Peer:           p,
 		ReceiveTimeout: 5 * time.Second,
@@ -44,10 +48,22 @@ func NewWebsocketClient(serialization int, url string, realm URI, roles int) (*C
 	go c.Receive()
 
 	roles_map := make(map[string]interface{})
-	roles_map["publisher"] = make(map[string]interface{})
-	roles_map["subscriber"] = make(map[string]interface{})
-	roles_map["callee"] = make(map[string]interface{})
-	roles_map["caller"] = make(map[string]interface{})
+
+	if roles&PUBLISHER == PUBLISHER {
+		roles_map["publisher"] = make(map[string]interface{})
+	}
+
+	if roles&SUBSCRIBER == SUBSCRIBER {
+		roles_map["subscriber"] = make(map[string]interface{})
+	}
+
+	if roles&CALLEE == CALLEE {
+		roles_map["callee"] = make(map[string]interface{})
+	}
+
+	if roles&CALLER == CALLER {
+		roles_map["caller"] = make(map[string]interface{})
+	}
 
 	details := make(map[string]interface{})
 	details["roles"] = roles_map
@@ -85,12 +101,27 @@ func (c *Client) Receive() {
 			if fn, ok := c.methods[msg.Registration]; ok {
 				go func() {
 					result := fn(msg.Arguments, msg.ArgumentsKw)
-					if err := c.Send(&Yield{
+
+					var tosend Message
+					tosend = &Yield{
 						Request:     msg.Request,
 						Options:     make(map[string]interface{}),
-						Arguments:   result,
-						ArgumentsKw: make(map[string]interface{}),
-					}); err != nil {
+						Arguments:   result.args,
+						ArgumentsKw: result.kwargs,
+					}
+
+					if result.err != "" {
+						tosend = &Error{
+							Type:        INVOCATION,
+							Request:     msg.Request,
+							Details:     make(map[string]interface{}),
+							Arguments:   result.args,
+							ArgumentsKw: result.kwargs,
+							Error:       result.err,
+						}
+					}
+
+					if err := c.Send(tosend); err != nil {
 						log.Fatal(err)
 					}
 				}()
@@ -173,7 +204,7 @@ func (c *Client) Subscribe(topic URI, fn EventHandler) error {
 	return nil
 }
 
-type MethodHandler func(args []interface{}, kwargs map[string]interface{}) (result []interface{})
+type MethodHandler func(args []interface{}, kwargs map[string]interface{}) (result *CallResult)
 
 func (c *Client) Register(procedure URI, fn MethodHandler) error {
 	id := c.nextID()
