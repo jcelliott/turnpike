@@ -1,6 +1,7 @@
 package turnpike
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -174,4 +175,28 @@ func (s *JSONSerializer) Deserialize(data []byte) (Message, error) {
 		return nil, fmt.Errorf("Unsupported message format")
 	}
 	return apply(msgType, arr)
+}
+
+// Marshals and unmarshals byte arrays according to WAMP specifications:
+// https://github.com/tavendo/WAMP/blob/master/spec/basic.md#binary-conversion-of-json-strings
+//
+// This type *should* be used in types that will be marshalled as JSON.
+type BinaryData []byte
+
+func (b BinaryData) MarshalJSON() ([]byte, error) {
+	s := base64.StdEncoding.EncodeToString([]byte(b))
+	return json.Marshal("\x00" + s)
+}
+
+func (b *BinaryData) UnmarshalJSON(arr []byte) error {
+	var s string
+	err := json.Unmarshal(arr, &s)
+	if err != nil {
+		return nil
+	}
+	if s[0] != '\x00' {
+		return fmt.Errorf("Not a binary string, doesn't start with a NUL: %v", arr)
+	}
+	*b, err = base64.StdEncoding.DecodeString(s[1:])
+	return err
 }
