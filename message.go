@@ -246,8 +246,8 @@ type Error struct {
 	Request     ID
 	Details     map[string]interface{}
 	Error       URI
-	Arguments   []interface{}
-	ArgumentsKw map[string]interface{}
+	Arguments   []interface{}          `wamp:"omitempty"`
+	ArgumentsKw map[string]interface{} `wamp:"omitempty"`
 }
 
 func (msg *Error) MessageType() MessageType {
@@ -261,8 +261,8 @@ type Publish struct {
 	Request     ID
 	Options     map[string]interface{}
 	Topic       URI
-	Arguments   []interface{}
-	ArgumentsKw map[string]interface{}
+	Arguments   []interface{}          `wamp:"omitempty"`
+	ArgumentsKw map[string]interface{} `wamp:"omitempty"`
 }
 
 func (msg *Publish) MessageType() MessageType {
@@ -327,8 +327,8 @@ type Event struct {
 	Subscription ID
 	Publication  ID
 	Details      map[string]interface{}
-	Arguments    []interface{}
-	ArgumentsKw  map[string]interface{}
+	Arguments    []interface{}          `wamp:"omitempty"`
+	ArgumentsKw  map[string]interface{} `wamp:"omitempty"`
 }
 
 func (msg *Event) MessageType() MessageType {
@@ -342,8 +342,8 @@ type Call struct {
 	Request     ID
 	Options     map[string]interface{}
 	Procedure   URI
-	Arguments   []interface{}
-	ArgumentsKw map[string]interface{}
+	Arguments   []interface{}          `wamp:"omitempty"`
+	ArgumentsKw map[string]interface{} `wamp:"omitempty"`
 }
 
 func (msg *Call) MessageType() MessageType {
@@ -356,8 +356,8 @@ func (msg *Call) MessageType() MessageType {
 type Result struct {
 	Request     ID
 	Details     map[string]interface{}
-	Arguments   []interface{}
-	ArgumentsKw map[string]interface{}
+	Arguments   []interface{}          `wamp:"omitempty"`
+	ArgumentsKw map[string]interface{} `wamp:"omitempty"`
 }
 
 func (msg *Result) MessageType() MessageType {
@@ -411,8 +411,8 @@ type Invocation struct {
 	Request      ID
 	Registration ID
 	Details      map[string]interface{}
-	Arguments    []interface{}
-	ArgumentsKw  map[string]interface{}
+	Arguments    []interface{}          `wamp:"omitempty"`
+	ArgumentsKw  map[string]interface{} `wamp:"omitempty"`
 }
 
 func (msg *Invocation) MessageType() MessageType {
@@ -425,8 +425,8 @@ func (msg *Invocation) MessageType() MessageType {
 type Yield struct {
 	Request     ID
 	Options     map[string]interface{}
-	Arguments   []interface{}
-	ArgumentsKw map[string]interface{}
+	Arguments   []interface{}          `wamp:"omitempty"`
+	ArgumentsKw map[string]interface{} `wamp:"omitempty"`
 }
 
 func (msg *Yield) MessageType() MessageType {

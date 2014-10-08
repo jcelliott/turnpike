@@ -84,3 +84,31 @@ func TestBinaryData(t *testing.T) {
 		t.Errorf("%s != %s", string(b), string(from))
 	}
 }
+
+func TestToList(t *testing.T) {
+	type test struct {
+		args   []interface{}
+		kwArgs map[string]interface{}
+		omit   int
+		msg    string
+	}
+	tests := []test{
+		{[]interface{}{1}, map[string]interface{}{"a": nil}, 0, "default case"},
+		{nil, map[string]interface{}{"a": nil}, 0, "nil args, non-empty kwArgs"},
+		{[]interface{}{}, map[string]interface{}{"a": nil}, 0, "empty args, non-empty kwArgs"},
+		{[]interface{}{1}, nil, 1, "non-empty args, nil kwArgs"},
+		{[]interface{}{1}, make(map[string]interface{}), 1, "non-empty args, empty kwArgs"},
+		{[]interface{}{}, make(map[string]interface{}), 2, "empty args, empty kwArgs"},
+		{nil, nil, 2, "nil args, nil kwArgs"},
+	}
+
+	for _, tst := range tests {
+		msg := &Event{0, 0, nil, tst.args, tst.kwArgs}
+		// +1 to account for the message type
+		numField := reflect.ValueOf(msg).Elem().NumField() + 1
+		exp := numField - tst.omit
+		if l := len(toList(msg)); l != exp {
+			t.Errorf("Incorrect number of fields: %d != %d: %s", l, exp, tst.msg)
+		}
+	}
+}
