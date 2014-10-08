@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/ugorji/go/codec"
 )
@@ -110,21 +111,35 @@ type Serializer interface {
 	Deserialize([]byte) (Message, error)
 }
 
-type MessagePackSerializer struct {
-}
-
-func (s *MessagePackSerializer) Serialize(msg Message) ([]byte, error) {
-	arr := []interface{}{int(msg.MessageType())}
+// convert the message into a list of values, omitting trailing empty values
+func toList(msg Message) []interface{} {
 	val := reflect.ValueOf(msg)
 	if val.Kind() == reflect.Ptr {
 		val = val.Elem()
 	}
-	for i := 0; i < val.NumField(); i++ {
-		arr = append(arr, val.Field(i).Interface())
+
+	// iterate backwards until a non-empty or non-"omitempty" field is found
+	last := val.Type().NumField() - 1
+	for ; last > 0; last-- {
+		tag := val.Type().Field(last).Tag.Get("wamp")
+		if !strings.Contains(tag, "omitempty") || val.Field(last).Len() > 0 {
+			break
+		}
 	}
 
+	ret := []interface{}{int(msg.MessageType())}
+	for i := 0; i <= last; i++ {
+		ret = append(ret, val.Field(i).Interface())
+	}
+	return ret
+}
+
+type MessagePackSerializer struct {
+}
+
+func (s *MessagePackSerializer) Serialize(msg Message) ([]byte, error) {
 	var b []byte
-	return b, codec.NewEncoderBytes(&b, new(codec.MsgpackHandle)).Encode(arr)
+	return b, codec.NewEncoderBytes(&b, new(codec.MsgpackHandle)).Encode(toList(msg))
 }
 
 func (s *MessagePackSerializer) Deserialize(data []byte) (Message, error) {
@@ -149,15 +164,7 @@ type JSONSerializer struct {
 }
 
 func (s *JSONSerializer) Serialize(msg Message) ([]byte, error) {
-	arr := []interface{}{int(msg.MessageType())}
-	val := reflect.ValueOf(msg)
-	if val.Kind() == reflect.Ptr {
-		val = val.Elem()
-	}
-	for i := 0; i < val.NumField(); i++ {
-		arr = append(arr, val.Field(i).Interface())
-	}
-	return json.Marshal(arr)
+	return json.Marshal(toList(msg))
 }
 
 func (s *JSONSerializer) Deserialize(data []byte) (Message, error) {
