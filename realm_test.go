@@ -48,7 +48,7 @@ func TestBasicAuthenticator(t *testing.T) {
 		Convey("When a client authenticates with invalid credentials", func() {
 			details := map[string]interface{}{
 				"password":    "password",
-				"authmethods": []string{"test"},
+				"authmethods": []interface{}{"test"},
 			}
 			_, err := realm.Authenticate(details)
 			Convey("Authenticate should return an error", func() {
@@ -58,7 +58,7 @@ func TestBasicAuthenticator(t *testing.T) {
 		Convey("When a client authenticates with valid credentials ", func() {
 			details := map[string]interface{}{
 				"password":    "super-secret",
-				"authmethods": []string{"test"},
+				"authmethods": []interface{}{"test"},
 			}
 			msg, err := realm.Authenticate(details)
 			Convey("Authenticate should return a Welcome message", func() {
@@ -94,6 +94,7 @@ func testCRSign(challenge map[string]interface{}) string {
 }
 
 func TestCRAuthenticator(t *testing.T) {
+	Debug()
 	Convey("Given a realm with a challenge-response authenticator", t, func() {
 		realm := Realm{
 			CRAuthenticators: map[string]CRAuthenticator{
@@ -102,7 +103,7 @@ func TestCRAuthenticator(t *testing.T) {
 		}
 		Convey("When a client provides invalid details for the authentication type", func() {
 			details := map[string]interface{}{
-				"authmethods": []string{"test"},
+				"authmethods": []interface{}{"test"},
 			}
 			_, err := realm.Authenticate(details)
 			Convey("Authenticate should return an error", func() {
@@ -112,7 +113,7 @@ func TestCRAuthenticator(t *testing.T) {
 		Convey("When a client provides valid details for the authentication type", func() {
 			details := map[string]interface{}{
 				"username":    "tester1",
-				"authmethods": []string{"test"},
+				"authmethods": []interface{}{"test"},
 			}
 			msg, err := realm.Authenticate(details)
 			Convey("Authenticate should return a Challenge message", func() {

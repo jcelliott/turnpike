@@ -42,24 +42,34 @@ type WebsocketServer struct {
 	BinarySerializer Serializer
 }
 
-func NewWebsocketServer(r Router) *WebsocketServer {
+// Creates a new WebsocketServer from a map of realms
+func NewWebsocketServer(realms map[string]Realm) (*WebsocketServer, error) {
+	log.Println("NewWebsocketServer")
+	r := NewDefaultRouter()
+	for uri, realm := range realms {
+		if err := r.RegisterRealm(URI(uri), realm); err != nil {
+			return nil, err
+		}
+	}
+	s := newWebsocketServer(r)
+	return s, nil
+}
+
+func newWebsocketServer(r Router) *WebsocketServer {
 	s := &WebsocketServer{
 		router:    r,
 		protocols: make(map[string]protocol),
 	}
-
 	s.upgrader = &websocket.Upgrader{}
+	s.RegisterProtocol(jsonWebsocketProtocol, websocket.TextMessage, new(JSONSerializer))
+	s.RegisterProtocol(msgpackWebsocketProtocol, websocket.BinaryMessage, new(MessagePackSerializer))
 	return s
 }
 
-// Creates a new WebsocketServer with a single realm
-func NewBasicWebsocketServer(realm URI) *WebsocketServer {
+// Creates a new WebsocketServer with a single basic realm
+func NewBasicWebsocketServer(uri string) *WebsocketServer {
 	log.Println("NewBasicWebsocketServer")
-	r := NewDefaultRouter()
-	r.RegisterRealm(realm, Realm{})
-	s := NewWebsocketServer(r)
-	s.RegisterProtocol(jsonWebsocketProtocol, websocket.TextMessage, new(JSONSerializer))
-	s.RegisterProtocol(msgpackWebsocketProtocol, websocket.BinaryMessage, new(MessagePackSerializer))
+	s, _ := NewWebsocketServer(map[string]Realm{uri: {}})
 	return s
 }
 

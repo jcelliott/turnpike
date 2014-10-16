@@ -1,25 +1,51 @@
 package turnpike
 
 import (
+	"fmt"
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
 )
 
-type TestPeer struct {
-	messages      chan Message
-	sent_messages []Message
+type testPeer struct {
+	messages     chan Message
+	sentMessages []Message
 }
 
-func (t *TestPeer) Send(msg Message) error {
-	t.sent_messages = append(t.sent_messages, msg)
+func (t *testPeer) Send(msg Message) error {
+	t.sentMessages = append(t.sentMessages, msg)
 
 	switch msg := msg.(type) {
+
+	case *Hello:
+		if _, ok := msg.Details["authmethods"]; !ok {
+			t.messages <- &Welcome{
+				Id:      NewID(),
+				Details: make(map[string]interface{}),
+			}
+		} else {
+			t.messages <- &Challenge{
+				AuthMethod: "testauth",
+				Extra:      map[string]interface{}{"challenge": "password"},
+			}
+		}
+
+	case *Authenticate:
+		if msg.Signature == "passwordpassword" {
+			t.messages <- &Welcome{
+				Id:      NewID(),
+				Details: make(map[string]interface{}),
+			}
+		} else {
+			t.messages <- &Abort{
+				Reason: URI("turnpike.error.invalid_auth_signature"),
+			}
+		}
 
 	case *Register:
 		// Only allow methods named "mymethod" to be registered.
 		if msg.Procedure == "mymethod" {
-			args := make([]interface{}, 0, 0)
+			args := make([]interface{}, 0)
 			args = append(args, 1234)
 
 			t.messages <- &Registered{
@@ -31,8 +57,8 @@ func (t *TestPeer) Send(msg Message) error {
 				Type:        REGISTER,
 				Request:     msg.Request,
 				Details:     msg.Options,
-				Error:       "invalid method",
-				Arguments:   make([]interface{}, 0, 0),
+				Error:       WAMP_ERROR_INVALID_URI,
+				Arguments:   make([]interface{}, 0),
 				ArgumentsKw: make(map[string]interface{}),
 			}
 		}
@@ -50,7 +76,7 @@ func (t *TestPeer) Send(msg Message) error {
 		// testmethod: A method called by the client test (fake)
 		// mymethod: A method called by the server test (does real work)
 		if msg.Procedure == "testmethod" {
-			args := make([]interface{}, 0, 0)
+			args := make([]interface{}, 0)
 			args = append(args, 1234)
 
 			t.messages <- &Result{
@@ -73,7 +99,7 @@ func (t *TestPeer) Send(msg Message) error {
 				Request:     msg.Request,
 				Details:     msg.Options,
 				Error:       "unknown method",
-				Arguments:   make([]interface{}, 0, 0),
+				Arguments:   make([]interface{}, 0),
 				ArgumentsKw: make(map[string]interface{}),
 			}
 		}
@@ -82,210 +108,124 @@ func (t *TestPeer) Send(msg Message) error {
 	return nil
 }
 
-func (t *TestPeer) Close() error {
+func (t *testPeer) Close() error {
 	return nil
 }
 
-func (t *TestPeer) Receive() <-chan Message {
+func (t *testPeer) Receive() <-chan Message {
 	return t.messages
 }
 
-func TestRemoteCall(t *testing.T) {
-	Convey("Given a client connected to a peer", t, func() {
-		testPeer := &TestPeer{
-			messages:      make(chan Message),
-			sent_messages: make([]Message, 0, 1),
-		}
+func newTestPeer() *testPeer {
+	return &testPeer{
+		messages: make(chan Message, 2),
+	}
+}
 
-		client, err := NewClientInternal(testPeer, "testrealm", ALL)
-		Convey("The client registers a method", func() {
-			So(err, ShouldEqual, nil)
+func connectedTestClients() (*Client, *Client) {
+	peer := newTestPeer()
+	return newTestClient(peer), newTestClient(peer)
+}
 
-			err := client.Register("mymethod", func(args []interface{}, kwargs map[string]interface{}) *CallResult {
-				return ValueResult(args[0].(int) * 2)
-			})
+func newTestClient(p Peer) *Client {
+	client := newClient(p)
+	_, err := client.JoinRealm("test.realm", ALLROLES, nil)
+	So(err, ShouldBeNil)
+	return client
+}
 
-			Convey("And expects no error", func() {
-				So(err, ShouldEqual, nil)
-			})
+func TestJoinRealm(t *testing.T) {
+	Convey("Given a server accepting client connections", t, func() {
+		server := newTestPeer()
 
-			other_client, err := NewClientInternal(testPeer, "testrealm", ALL)
-			Convey("We create another client", func() {
-				So(err, ShouldEqual, nil)
-
-				Convey("That calls the first client's remote method", func() {
-					call_args := make([]interface{}, 0, 0)
-					call_args = append(call_args, 5100)
-					result, err := other_client.Call("mymethod", call_args, make(map[string]interface{}))
-					Convey("And succeeds at multiplying the number by 2", func() {
-						So(err, ShouldEqual, nil)
-						So(result.(*Result).Arguments[0], ShouldEqual, 10200)
-					})
-				})
-			})
+		Convey("A client should be able to succesfully join a realm", func() {
+			client := newClient(server)
+			_, err := client.JoinRealm("test.realm", ALLROLES, nil)
+			So(err, ShouldBeNil)
 		})
+	})
+}
 
-		Convey("The client registers an invalid method", func() {
-			So(err, ShouldEqual, nil)
+func testAuthFunc(d map[string]interface{}, c map[string]interface{}) (string, map[string]interface{}, error) {
+	key := c["challenge"].(string)
+	if key == "fail" {
+		return "", map[string]interface{}{}, fmt.Errorf("authentication failed")
+	}
+	signature := key + key // it's super effective!
+	return signature, map[string]interface{}{}, nil
+}
 
-			err := client.Register("invalidmethod", func(args []interface{}, kwargs map[string]interface{}) *CallResult {
+func TestJoinRealmAuth(t *testing.T) {
+	Convey("Given a server accepting client connections", t, func() {
+		server := newTestPeer()
+
+		Convey("A client should be able to successfully authenticate and join a realm", func() {
+			details := map[string]interface{}{"authmethods": []string{"testauth"}}
+			auth := map[string]AuthFunc{"testauth": testAuthFunc}
+			client := newClient(server)
+			_, err := client.JoinRealmAuth("test.realm", ALLROLES, details, auth)
+			So(err, ShouldBeNil)
+		})
+	})
+}
+
+func TestRemoteCall(t *testing.T) {
+	Convey("Given two clients connected to the same server", t, func() {
+		callee, caller := connectedTestClients()
+
+		Convey("The callee registers an invalid method", func() {
+			handler := func(args []interface{}, kwargs map[string]interface{}) *CallResult {
 				return nil
-			})
+			}
+			err := callee.Register("invalidmethod", handler)
 
 			Convey("And expects an error", func() {
 				So(err, ShouldNotBeNil)
+			})
+		})
+
+		Convey("The callee registers a valid method", func() {
+			handler := func(args []interface{}, kwargs map[string]interface{}) *CallResult {
+				return ValueResult(args[0].(int) * 2)
+			}
+			err := callee.Register("mymethod", handler)
+
+			Convey("And expects no error", func() {
+				So(err, ShouldBeNil)
+
+				Convey("The caller calls the callee's remote method", func() {
+					callArgs := []interface{}{5100}
+					result, err := caller.Call("mymethod", callArgs, make(map[string]interface{}))
+
+					Convey("And succeeds at multiplying the number by 2", func() {
+						So(err, ShouldBeNil)
+						So(result.(*Result).Arguments[0], ShouldEqual, 10200)
+					})
+				})
 			})
 		})
 	})
 }
 
 func TestClientCall(t *testing.T) {
-	Convey("Given a client connected to a peer", t, func() {
-		testPeer := &TestPeer{
-			messages:      make(chan Message),
-			sent_messages: make([]Message, 0, 1),
-		}
+	Convey("Given a client connected to a server", t, func() {
+		server := newTestPeer()
+		client := newTestClient(server)
 
-		client, err := NewClientInternal(testPeer, "testrealm", ALL)
 		Convey("The client calls a valid method", func() {
-			So(err, ShouldEqual, nil)
+			result, err := client.Call("testmethod", []interface{}{}, map[string]interface{}{})
 
-			result, err := client.Call("testmethod", make([]interface{}, 0, 0), make(map[string]interface{}))
 			Convey("And expects a result", func() {
-				So(err, ShouldEqual, nil)
+				So(err, ShouldBeNil)
 				So(result.(*Result).Arguments[0], ShouldEqual, 1234)
 			})
 		})
 
 		Convey("The client calls an invalid method", func() {
-			So(err, ShouldEqual, nil)
-
-			_, err := client.Call("invalidmethod", make([]interface{}, 0, 0), make(map[string]interface{}))
+			_, err := client.Call("invalidmethod", []interface{}{}, map[string]interface{}{})
 			Convey("And expects an error", func() {
 				So(err, ShouldNotBeNil)
 			})
-		})
-	})
-}
-
-func TestHello(t *testing.T) {
-	Convey("Given an 'ALL' client connected to a peer", t, func() {
-		testPeer := &TestPeer{
-			messages:      make(chan Message),
-			sent_messages: make([]Message, 0, 1),
-		}
-
-		_, err := NewClientInternal(testPeer, "testrealm", ALL)
-		Convey("The client says HELLO", func() {
-			msg := testPeer.sent_messages[0]
-
-			So(err, ShouldEqual, nil)
-			So(msg.MessageType(), ShouldEqual, HELLO)
-
-			typed_msg := testPeer.sent_messages[0].(*Hello)
-			So(typed_msg.Details["roles"], ShouldNotBeNil)
-
-			roles := typed_msg.Details["roles"].(map[string]interface{})
-			So(roles["publisher"], ShouldNotBeNil)
-			So(roles["subscriber"], ShouldNotBeNil)
-			So(roles["caller"], ShouldNotBeNil)
-			So(roles["callee"], ShouldNotBeNil)
-		})
-	})
-
-	Convey("Given a SUBSCRIBER-only client connected to a peer", t, func() {
-		testPeer := &TestPeer{
-			messages:      make(chan Message),
-			sent_messages: make([]Message, 0, 1),
-		}
-
-		_, err := NewClientInternal(testPeer, "testrealm", SUBSCRIBER)
-		Convey("The client says HELLO", func() {
-			msg := testPeer.sent_messages[0]
-
-			So(err, ShouldEqual, nil)
-			So(msg.MessageType(), ShouldEqual, HELLO)
-
-			typed_msg := testPeer.sent_messages[0].(*Hello)
-			So(typed_msg.Details["roles"], ShouldNotBeNil)
-
-			roles := typed_msg.Details["roles"].(map[string]interface{})
-			So(roles["subscriber"], ShouldNotBeNil)
-			So(roles["publisher"], ShouldBeNil)
-			So(roles["caller"], ShouldBeNil)
-			So(roles["callee"], ShouldBeNil)
-		})
-	})
-
-	Convey("Given a PUBLISHER-only client connected to a peer", t, func() {
-		testPeer := &TestPeer{
-			messages:      make(chan Message),
-			sent_messages: make([]Message, 0, 1),
-		}
-
-		_, err := NewClientInternal(testPeer, "testrealm", PUBLISHER)
-		Convey("The client says HELLO", func() {
-			msg := testPeer.sent_messages[0]
-
-			So(err, ShouldEqual, nil)
-			So(msg.MessageType(), ShouldEqual, HELLO)
-
-			typed_msg := testPeer.sent_messages[0].(*Hello)
-			So(typed_msg.Details["roles"], ShouldNotBeNil)
-
-			roles := typed_msg.Details["roles"].(map[string]interface{})
-			So(roles["subscriber"], ShouldBeNil)
-			So(roles["publisher"], ShouldNotBeNil)
-			So(roles["caller"], ShouldBeNil)
-			So(roles["callee"], ShouldBeNil)
-		})
-	})
-
-	Convey("Given a CALLER-only client connected to a peer", t, func() {
-		testPeer := &TestPeer{
-			messages:      make(chan Message),
-			sent_messages: make([]Message, 0, 1),
-		}
-
-		_, err := NewClientInternal(testPeer, "testrealm", CALLER)
-		Convey("The client says HELLO", func() {
-			msg := testPeer.sent_messages[0]
-
-			So(err, ShouldEqual, nil)
-			So(msg.MessageType(), ShouldEqual, HELLO)
-
-			typed_msg := testPeer.sent_messages[0].(*Hello)
-			So(typed_msg.Details["roles"], ShouldNotBeNil)
-
-			roles := typed_msg.Details["roles"].(map[string]interface{})
-			So(roles["subscriber"], ShouldBeNil)
-			So(roles["publisher"], ShouldBeNil)
-			So(roles["caller"], ShouldNotBeNil)
-			So(roles["callee"], ShouldBeNil)
-		})
-	})
-
-	Convey("Given a CALLEE-only client connected to a peer", t, func() {
-		testPeer := &TestPeer{
-			messages:      make(chan Message),
-			sent_messages: make([]Message, 0, 1),
-		}
-
-		_, err := NewClientInternal(testPeer, "testrealm", CALLEE)
-		Convey("The client says HELLO", func() {
-			msg := testPeer.sent_messages[0]
-
-			So(err, ShouldEqual, nil)
-			So(msg.MessageType(), ShouldEqual, HELLO)
-
-			typed_msg := testPeer.sent_messages[0].(*Hello)
-			So(typed_msg.Details["roles"], ShouldNotBeNil)
-
-			roles := typed_msg.Details["roles"].(map[string]interface{})
-			So(roles["subscriber"], ShouldBeNil)
-			So(roles["publisher"], ShouldBeNil)
-			So(roles["caller"], ShouldBeNil)
-			So(roles["callee"], ShouldNotBeNil)
 		})
 	})
 }

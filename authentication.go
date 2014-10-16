@@ -13,7 +13,8 @@ type CRAuthenticator interface {
 }
 
 type Authenticator interface {
-	// Authenticate TODO:
+	// Authenticate takes the HELLO details and returns a (WELCOME) details map if the
+	// authentication is successful, otherwise it returns an error
 	Authenticate(details map[string]interface{}) (map[string]interface{}, error)
 }
 
@@ -32,6 +33,6 @@ func (t *BasicTicketAuthenticator) Authenticate(challenge map[string]interface{}
 	return nil, nil
 }
 
-func NewBasicTicketAuthenticator(ticket string) *BasicTicketAuthenticator {
+func NewBasicTicketAuthenticator(ticket string) CRAuthenticator {
 	return &BasicTicketAuthenticator{ticket: ticket}
 }

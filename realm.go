@@ -14,12 +14,24 @@ type Realm struct {
 }
 
 func (r Realm) Authenticate(details map[string]interface{}) (Message, error) {
+	log.Println("details:", details)
 	if len(r.Authenticators) == 0 && len(r.CRAuthenticators) == 0 {
 		return &Welcome{}, nil
 	}
-	authmethods, ok := details["authmethods"].([]string)
+	// TODO: this might not always be a []interface{}. Using the JSON unmarshaller it will be,
+	// but we may have serializations that preserve more of the original type.
+	// For now, the tests just explicitly send a []interface{}
+	_authmethods, ok := details["authmethods"].([]interface{})
 	if !ok {
 		return nil, fmt.Errorf("No authentication supplied")
+	}
+	authmethods := []string{}
+	for _, method := range _authmethods {
+		if m, ok := method.(string); ok {
+			authmethods = append(authmethods, m)
+		} else {
+			log.Printf("invalid authmethod value: %v", method)
+		}
 	}
 	for _, method := range authmethods {
 		if auth, ok := r.CRAuthenticators[method]; ok {

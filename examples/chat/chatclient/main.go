@@ -36,7 +36,11 @@ func main() {
 	username := os.Args[1]
 
 	// turnpike.Debug()
-	c, err := turnpike.NewWebsocketClient(turnpike.JSON, "ws://localhost:8000/", "turnpike.examples", turnpike.ALL)
+	c, err := turnpike.NewWebsocketClient(turnpike.JSON, "ws://localhost:8000/")
+	if err != nil {
+		log.Fatal(err)
+	}
+	_, err = c.JoinRealm("turnpike.examples", turnpike.ALLROLES, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
