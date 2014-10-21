@@ -285,7 +285,12 @@ type EventHandler func(args []interface{}, kwargs map[string]interface{})
 func (c *Client) Subscribe(topic URI, fn EventHandler) error {
 	id := c.nextID()
 	c.registerListener(id)
-	if err := c.Send(&Subscribe{Request: id, Topic: topic}); err != nil {
+	sub := &Subscribe{
+		Request: id,
+		Options: make(map[string]interface{}),
+		Topic:   topic,
+	}
+	if err := c.Send(sub); err != nil {
 		return err
 	}
 	// wait to receive SUBSCRIBED message
@@ -335,6 +340,7 @@ func (c *Client) Register(procedure URI, fn MethodHandler) error {
 func (c *Client) Publish(topic URI, args []interface{}, kwargs map[string]interface{}) error {
 	return c.Send(&Publish{
 		Request:     c.nextID(),
+		Options:     make(map[string]interface{}),
 		Topic:       topic,
 		Arguments:   args,
 		ArgumentsKw: kwargs,
