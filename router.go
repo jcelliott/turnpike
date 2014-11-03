@@ -93,7 +93,7 @@ func (r *DefaultRouter) handleSession(sess Session, realmURI URI) {
 				return
 			}
 		case reason := <-sess.kill:
-			sess.Send(&Goodbye{Reason: reason})
+			sess.Send(&Goodbye{Reason: reason, Details: make(map[string]interface{})})
 			// TODO: wait for client Goodbye?
 			return
 		}
@@ -102,7 +102,7 @@ func (r *DefaultRouter) handleSession(sess Session, realmURI URI) {
 
 		switch msg := msg.(type) {
 		case *Goodbye:
-			sess.Send(&Goodbye{Reason: WAMP_ERROR_GOODBYE_AND_OUT})
+			sess.Send(&Goodbye{Reason: WAMP_ERROR_GOODBYE_AND_OUT, Details: make(map[string]interface{})})
 			return
 
 		// Broker messages
