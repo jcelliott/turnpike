@@ -174,6 +174,10 @@ func formatUnknownMap(m map[string]interface{}) string {
 	return s
 }
 
+func (c *Client) LeaveRealm() {
+	c.Send(goodbyeClient)
+}
+
 func (c *Client) Close() {
 	c.Send(goodbyeClient)
 	c.Peer.Close()
