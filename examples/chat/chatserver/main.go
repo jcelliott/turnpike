@@ -4,7 +4,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/jcelliott/turnpike"
+	"gopkg.in/jcelliott/turnpike.v2"
 )
 
 func main() {
