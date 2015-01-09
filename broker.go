@@ -44,6 +44,10 @@ func NewDefaultBroker() *DefaultBroker {
 	}
 }
 
+// Publish sends a message to all subscribed clients except for the sender.
+//
+// If msg.Options["acknowledge"] == true, the publisher receives a Published event
+// after the message has been sent to all subscribers.
 func (br *DefaultBroker) Publish(pub Sender, msg *Publish) {
 	pubId := NewID()
 	evtTemplate := Event{
@@ -56,9 +60,10 @@ func (br *DefaultBroker) Publish(pub Sender, msg *Publish) {
 		// shallow-copy the template
 		event := evtTemplate
 		event.Subscription = id
-		sub.Send(&event)
-		// TODO: publisher should not receive event, even if subscribed.
-		// see: https://github.com/tavendo/WAMP/blob/master/spec/basic.md#event-1
+		// don't send event to publisher
+		if sub != pub {
+			sub.Send(&event)
+		}
 	}
 
 	// only send published message if acknowledge is present and set to true
