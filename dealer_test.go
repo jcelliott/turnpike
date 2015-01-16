@@ -14,7 +14,7 @@ func (c *TestCallee) Send(msg Message) error { c.received = msg; return nil }
 
 func TestRegister(t *testing.T) {
 	Convey("Registering a procedure", t, func() {
-		dealer := NewDefaultDealer()
+		dealer := NewDefaultDealer().(*defaultDealer)
 		callee := &TestCallee{}
 		testProcedure := URI("turnpike.test.endpoint")
 		msg := &Register{Request: 123, Procedure: testProcedure}

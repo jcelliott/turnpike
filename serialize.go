@@ -10,8 +10,12 @@ import (
 	"github.com/ugorji/go/codec"
 )
 
+type Serialization int
+
 const (
-	JSON = iota
+	// Use JSON-encoded strings as a payload.
+	JSON Serialization = iota
+	// Use msgpack-encoded strings as a payload.
 	MSGPACK
 )
 
@@ -106,6 +110,7 @@ func applySlice(dst reflect.Value, src reflect.Value) error {
 	return nil
 }
 
+// Serialiazer is a generic WAMP message serializer used when sending data over a transport.
 type Serializer interface {
 	Serialize(Message) ([]byte, error)
 	Deserialize([]byte) (Message, error)
@@ -134,14 +139,18 @@ func toList(msg Message) []interface{} {
 	return ret
 }
 
+// MessagePack is an implementation of Serializer that handles serializing
+// and deserializing msgpack encoded payloads.
 type MessagePackSerializer struct {
 }
 
+// Serialize encodes a Message into a msgpack payload.
 func (s *MessagePackSerializer) Serialize(msg Message) ([]byte, error) {
 	var b []byte
 	return b, codec.NewEncoderBytes(&b, new(codec.MsgpackHandle)).Encode(toList(msg))
 }
 
+// Deserialize decodes a msgpack payload into a Message.
 func (s *MessagePackSerializer) Deserialize(data []byte) (Message, error) {
 	var arr []interface{}
 	if err := codec.NewDecoderBytes(data, new(codec.MsgpackHandle)).Decode(&arr); err != nil {
@@ -160,13 +169,25 @@ func (s *MessagePackSerializer) Deserialize(data []byte) (Message, error) {
 	return apply(msgType, arr)
 }
 
+// JSONSerializer is an implementation of Serializer that handles serializing
+// and deserializing JSON encoded payloads.
 type JSONSerializer struct {
 }
 
+// Serialize marshals the payload into a message.
+//
+// This method does not handle binary data according to WAMP specifications automatically,
+// but instead uses the default implementation in encoding/json.
+// Use the BinaryData type in your structures if using binary data.
 func (s *JSONSerializer) Serialize(msg Message) ([]byte, error) {
 	return json.Marshal(toList(msg))
 }
 
+// Deserialize unmarshals the payload into a message.
+//
+// This method does not handle binary data according to WAMP specifications automatically,
+// but instead uses the default implementation in encoding/json.
+// Use the BinaryData type in your structures if using binary data.
 func (s *JSONSerializer) Deserialize(data []byte) (Message, error) {
 	var arr []interface{}
 	if err := json.Unmarshal(data, &arr); err != nil {

@@ -1,12 +1,13 @@
 package turnpike
 
+// CallResult represents the result of a CALL.
 type CallResult struct {
 	args   []interface{}
 	kwargs map[string]interface{}
 	err    URI
 }
 
-func NewCallResult() *CallResult {
+func newCallResult() *CallResult {
 	return &CallResult{
 		args:   make([]interface{}, 0, 0),
 		kwargs: make(map[string]interface{}),
@@ -15,25 +16,25 @@ func NewCallResult() *CallResult {
 }
 
 func ValueResult(value interface{}) *CallResult {
-	result := NewCallResult()
+	result := newCallResult()
 	result.args = append(result.args, value)
 	return result
 }
 
 func SliceResult(slice []interface{}) *CallResult {
-	result := NewCallResult()
+	result := newCallResult()
 	result.args = slice
 	return result
 }
 
 func MapResult(map_value map[string]interface{}) *CallResult {
-	result := NewCallResult()
+	result := newCallResult()
 	result.kwargs = map_value
 	return result
 }
 
 func SimpleErrorResult(err URI) *CallResult {
-	result := NewCallResult()
+	result := newCallResult()
 	result.err = err
 	return result
 }

@@ -16,6 +16,7 @@ package turnpike
 // 	SendResult(*Result)
 // }
 
+// A Dealer routes and manages RPC calls to callees.
 type Dealer interface {
 	// Register a procedure on an endpoint
 	Register(Sender, *Register)
@@ -32,7 +33,7 @@ type RemoteProcedure struct {
 	Procedure URI
 }
 
-type DefaultDealer struct {
+type defaultDealer struct {
 	// map registration IDs to procedures
 	procedures map[ID]RemoteProcedure
 	// map procedure URIs to registration IDs
@@ -45,8 +46,8 @@ type DefaultDealer struct {
 	invocations map[ID]ID
 }
 
-func NewDefaultDealer() *DefaultDealer {
-	return &DefaultDealer{
+func NewDefaultDealer() Dealer {
+	return &defaultDealer{
 		procedures:    make(map[ID]RemoteProcedure),
 		registrations: make(map[URI]ID),
 		calls:         make(map[ID]Sender),
@@ -54,7 +55,7 @@ func NewDefaultDealer() *DefaultDealer {
 	}
 }
 
-func (d *DefaultDealer) Register(callee Sender, msg *Register) {
+func (d *defaultDealer) Register(callee Sender, msg *Register) {
 	if _, ok := d.registrations[msg.Procedure]; ok {
 		callee.Send(&Error{
 			Type:    msg.MessageType(),
@@ -72,7 +73,7 @@ func (d *DefaultDealer) Register(callee Sender, msg *Register) {
 	})
 }
 
-func (d *DefaultDealer) Unregister(callee Sender, msg *Unregister) {
+func (d *defaultDealer) Unregister(callee Sender, msg *Unregister) {
 	if procedure, ok := d.procedures[msg.Registration]; !ok {
 		// the registration doesn't exist
 		callee.Send(&Error{
@@ -89,7 +90,7 @@ func (d *DefaultDealer) Unregister(callee Sender, msg *Unregister) {
 	}
 }
 
-func (d *DefaultDealer) Call(caller Sender, msg *Call) {
+func (d *defaultDealer) Call(caller Sender, msg *Call) {
 	if reg, ok := d.registrations[msg.Procedure]; !ok {
 		caller.Send(&Error{
 			Type:    msg.MessageType(),
@@ -120,7 +121,7 @@ func (d *DefaultDealer) Call(caller Sender, msg *Call) {
 	}
 }
 
-func (d *DefaultDealer) Yield(callee Sender, msg *Yield) {
+func (d *defaultDealer) Yield(callee Sender, msg *Yield) {
 	if callID, ok := d.invocations[msg.Request]; !ok {
 		callee.Send(&Error{
 			Type:    msg.MessageType(),

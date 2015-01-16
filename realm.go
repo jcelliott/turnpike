@@ -4,6 +4,10 @@ import (
 	"fmt"
 )
 
+// A Realm is a WAMP routing and administrative domain.
+//
+// Clients that have connected to a WAMP router are joined to a realm and all
+// message delivery is handled by the realm.
 type Realm struct {
 	_ string
 	Broker
@@ -13,6 +17,8 @@ type Realm struct {
 	// DefaultAuth      func(details map[string]interface{}) (map[string]interface{}, error)
 }
 
+// Authenticate either authenticates a client or returns a challenge message if
+// challenge/response authentication is to be used.
 func (r Realm) Authenticate(details map[string]interface{}) (Message, error) {
 	log.Println("details:", details)
 	if len(r.Authenticators) == 0 && len(r.CRAuthenticators) == 0 {
@@ -53,6 +59,7 @@ func (r Realm) Authenticate(details map[string]interface{}) (Message, error) {
 	return nil, fmt.Errorf("could not authenticate with any method")
 }
 
+// CheckResponse determines whether the response to the challenge is sufficient to gain access to the Realm.
 func (r Realm) CheckResponse(challenge *Challenge, authenticate *Authenticate) (*Welcome, error) {
 	if auth, ok := r.CRAuthenticators[challenge.AuthMethod]; !ok {
 		return nil, fmt.Errorf("authentication method has been removed")

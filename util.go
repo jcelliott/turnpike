@@ -70,6 +70,7 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
+// NewID generates a random WAMP ID.
 func NewID() ID {
 	return ID(rand.Intn(MAX_ID))
 }

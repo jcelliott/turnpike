@@ -27,6 +27,7 @@ func (e unexpectedMessage) Error() string {
 	return fmt.Sprintf("Unexpected message: %s; expected %s", e.rec, e.exp)
 }
 
+// A Router handles new Peers and routes requests to the requested Realm.
 type Router interface {
 	Accept(Peer) error
 	Close() error
@@ -34,9 +35,9 @@ type Router interface {
 }
 
 // DefaultRouter is a very basic WAMP router.
-type DefaultRouter struct {
-	*DefaultBroker
-	*DefaultDealer
+type defaultRouter struct {
+	Broker
+	Dealer
 
 	realms  map[URI]Realm
 	clients map[URI][]Session
@@ -44,16 +45,17 @@ type DefaultRouter struct {
 	lastId  int
 }
 
-func NewDefaultRouter() *DefaultRouter {
-	return &DefaultRouter{
-		DefaultBroker: NewDefaultBroker(),
-		DefaultDealer: NewDefaultDealer(),
-		realms:        make(map[URI]Realm),
-		clients:       make(map[URI][]Session),
+// NewDefaultRouter creates a very basic WAMP router.
+func NewDefaultRouter() Router {
+	return &defaultRouter{
+		Broker:  NewDefaultBroker(),
+		Dealer:  NewDefaultDealer(),
+		realms:  make(map[URI]Realm),
+		clients: make(map[URI][]Session),
 	}
 }
 
-func (r *DefaultRouter) Close() error {
+func (r *defaultRouter) Close() error {
 	r.closing = true
 	for _, clients := range r.clients {
 		for _, client := range clients {
@@ -63,7 +65,7 @@ func (r *DefaultRouter) Close() error {
 	return nil
 }
 
-func (r *DefaultRouter) RegisterRealm(uri URI, realm Realm) error {
+func (r *defaultRouter) RegisterRealm(uri URI, realm Realm) error {
 	if _, ok := r.realms[uri]; ok {
 		return realmExists(uri)
 	}
@@ -77,7 +79,7 @@ func (r *DefaultRouter) RegisterRealm(uri URI, realm Realm) error {
 	return nil
 }
 
-func (r *DefaultRouter) handleSession(sess Session, realmURI URI) {
+func (r *defaultRouter) handleSession(sess Session, realmURI URI) {
 	defer sess.Close()
 
 	c := sess.Receive()
@@ -129,7 +131,7 @@ func (r *DefaultRouter) handleSession(sess Session, realmURI URI) {
 	}
 }
 
-func (r *DefaultRouter) Accept(client Peer) error {
+func (r *defaultRouter) Accept(client Peer) error {
 	if r.closing {
 		client.Send(&Abort{Reason: WAMP_ERROR_SYSTEM_SHUTDOWN})
 		client.Close()
@@ -193,7 +195,7 @@ func (r *DefaultRouter) Accept(client Peer) error {
 	return nil
 }
 
-func (r *DefaultRouter) authenticate(client Peer, realm Realm, details map[string]interface{}) (*Welcome, error) {
+func (r *defaultRouter) authenticate(client Peer, realm Realm, details map[string]interface{}) (*Welcome, error) {
 	msg, err := realm.Authenticate(details)
 	if err != nil {
 		return nil, err

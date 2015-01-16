@@ -22,6 +22,8 @@ package turnpike
 // 	SendSubscribed(*Subscribed)
 // }
 //
+
+// A broker handles routing EVENTS from Publishers to Subscribers.
 type Broker interface {
 	// Publishes a message to all Subscribers.
 	Publish(Sender, *Publish)
@@ -32,13 +34,14 @@ type Broker interface {
 }
 
 // A super simple broker that matches URIs to Subscribers.
-type DefaultBroker struct {
+type defaultBroker struct {
 	routes        map[URI]map[ID]Sender
 	subscriptions map[ID]URI
 }
 
-func NewDefaultBroker() *DefaultBroker {
-	return &DefaultBroker{
+// NewDefaultBroker initializes and returns a simple broker that matches URIs to Subscribers.
+func NewDefaultBroker() Broker {
+	return &defaultBroker{
 		routes:        make(map[URI]map[ID]Sender),
 		subscriptions: make(map[ID]URI),
 	}
@@ -48,7 +51,7 @@ func NewDefaultBroker() *DefaultBroker {
 //
 // If msg.Options["acknowledge"] == true, the publisher receives a Published event
 // after the message has been sent to all subscribers.
-func (br *DefaultBroker) Publish(pub Sender, msg *Publish) {
+func (br *defaultBroker) Publish(pub Sender, msg *Publish) {
 	pubId := NewID()
 	evtTemplate := Event{
 		Publication: pubId,
@@ -72,7 +75,8 @@ func (br *DefaultBroker) Publish(pub Sender, msg *Publish) {
 	}
 }
 
-func (br *DefaultBroker) Subscribe(sub Sender, msg *Subscribe) {
+// Subscribe subscribes the client to the given topic.
+func (br *defaultBroker) Subscribe(sub Sender, msg *Subscribe) {
 	if _, ok := br.routes[msg.Topic]; !ok {
 		br.routes[msg.Topic] = make(map[ID]Sender)
 	}
@@ -84,7 +88,7 @@ func (br *DefaultBroker) Subscribe(sub Sender, msg *Subscribe) {
 	sub.Send(&Subscribed{Request: msg.Request, Subscription: id})
 }
 
-func (br *DefaultBroker) Unsubscribe(sub Sender, msg *Unsubscribe) {
+func (br *defaultBroker) Unsubscribe(sub Sender, msg *Unsubscribe) {
 	topic, ok := br.subscriptions[msg.Subscription]
 	if !ok {
 		err := &Error{
