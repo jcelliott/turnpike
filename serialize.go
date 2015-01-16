@@ -10,8 +10,12 @@ import (
 	"github.com/ugorji/go/codec"
 )
 
+type Serialization int
+
 const (
-	JSON = iota
+	// Use JSON-encoded strings as a payload.
+	JSON Serialization = iota
+	// Use msgpack-encoded strings as a payload.
 	MSGPACK
 )
 
