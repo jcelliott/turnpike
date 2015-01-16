@@ -24,7 +24,7 @@ func (client *basicPeer) Close() error {
 	return nil
 }
 
-func basicConnect(t *testing.T, client *basicPeer, server Peer) *DefaultRouter {
+func basicConnect(t *testing.T, client *basicPeer, server Peer) Router {
 	r := NewDefaultRouter()
 	r.RegisterRealm(testRealm, Realm{})
 

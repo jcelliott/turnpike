@@ -6,10 +6,15 @@ import (
 )
 
 const (
+	// This client can publish events
 	PUBLISHER = 1 << iota
+	// This client can subscribe to events
 	SUBSCRIBER
+	// This client can register RPC functions
 	CALLEE
+	// This client can call RPC functions
 	CALLER
+	// This client can do all of the above
 	ALLROLES = PUBLISHER | SUBSCRIBER | CALLEE | CALLER
 )
 
@@ -32,8 +37,10 @@ var (
 	}
 )
 
+// A Client routes messages to/from a WAMP router.
 type Client struct {
 	Peer
+	// ReceiveTimeout is the amount of time that the client will block waiting for a response from the router.
 	ReceiveTimeout time.Duration
 	// roles          int
 	listeners    map[ID]chan Message
@@ -42,7 +49,8 @@ type Client struct {
 	requestCount uint
 }
 
-func NewWebsocketClient(serialization int, url string) (*Client, error) {
+// Creates a new websocket client.
+func NewWebsocketClient(serialization Serialization, url string) (*Client, error) {
 	p, err := NewWebsocketPeer(serialization, url, "")
 	if err != nil {
 		return nil, err
@@ -63,6 +71,7 @@ func newClient(p Peer) *Client {
 	return c
 }
 
+// JoinRealm joins a WAMP realm, but does not handle challenge/response authentication.
 func (c *Client) JoinRealm(realm URI, roles int, details map[string]interface{}) (map[string]interface{}, error) {
 	if details == nil {
 		details = map[string]interface{}{}
@@ -89,6 +98,7 @@ func (c *Client) JoinRealm(realm URI, roles int, details map[string]interface{})
 // signature string and a details map
 type AuthFunc func(map[string]interface{}, map[string]interface{}) (string, map[string]interface{}, error)
 
+// JoinRealmAuth joins a WAMP realm and handles challenge/response authentication.
 func (c *Client) JoinRealmAuth(realm URI, roles int, details map[string]interface{}, auth map[string]AuthFunc) (map[string]interface{}, error) {
 	if auth == nil || len(auth) == 0 {
 		return nil, fmt.Errorf("no authentication methods provided")
@@ -174,10 +184,12 @@ func formatUnknownMap(m map[string]interface{}) string {
 	return s
 }
 
+// LeaveRealm leaves the current realm without closing the connection to the server.
 func (c *Client) LeaveRealm() {
 	c.Send(goodbyeClient)
 }
 
+// Close closes the connection to the server.
 func (c *Client) Close() {
 	c.Send(goodbyeClient)
 	c.Peer.Close()
@@ -188,6 +200,9 @@ func (c *Client) nextID() ID {
 	return ID(c.requestCount)
 }
 
+// Receive handles messages from the server until this client disconnects.
+//
+// This function blocks and is most commonly run in a goroutine.
 func (c *Client) Receive() {
 	for msg := range c.Peer.Receive() {
 		switch msg := msg.(type) {
@@ -284,8 +299,10 @@ func (c *Client) waitOnListener(id ID) (msg Message, err error) {
 	}
 }
 
+// EventHandler handles a publish event.
 type EventHandler func(args []interface{}, kwargs map[string]interface{})
 
+// Subscribe registers the EventHandler to be called for every message in the provided topic.
 func (c *Client) Subscribe(topic URI, fn EventHandler) error {
 	id := c.nextID()
 	c.registerListener(id)
@@ -312,8 +329,10 @@ func (c *Client) Subscribe(topic URI, fn EventHandler) error {
 	return nil
 }
 
+// MethodHandler is an RPC endpoint.
 type MethodHandler func(args []interface{}, kwargs map[string]interface{}) (result *CallResult)
 
+// Register registers a procedure with the router.
 func (c *Client) Register(procedure URI, fn MethodHandler) error {
 	id := c.nextID()
 	c.registerListener(id)
@@ -341,6 +360,7 @@ func (c *Client) Register(procedure URI, fn MethodHandler) error {
 	return nil
 }
 
+// Publish publishes an EVENT to all subscribed peers.
 func (c *Client) Publish(topic URI, args []interface{}, kwargs map[string]interface{}) error {
 	return c.Send(&Publish{
 		Request:     c.nextID(),
@@ -351,6 +371,7 @@ func (c *Client) Publish(topic URI, args []interface{}, kwargs map[string]interf
 	})
 }
 
+// Call calls a procedure given a URI.
 func (c *Client) Call(procedure URI, args []interface{}, kwargs map[string]interface{}) (Message, error) {
 	id := c.nextID()
 	c.registerListener(id)

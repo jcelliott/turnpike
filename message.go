@@ -163,7 +163,12 @@ const (
 	YIELD        MessageType = 70 //	Rx 	Tx
 )
 
+// URIs are dot-separated identifiers, where each component *should* only contain letters, numbers or underscores.
+//
+// See the documentation for specifics: https://github.com/tavendo/WAMP/blob/master/spec/basic.md#uris
 type URI string
+
+// An ID is a unique, non-negative number. Different uses may have additional restrictions.
 type ID uint
 
 // [HELLO, Realm|uri, Details|dict]

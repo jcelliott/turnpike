@@ -73,6 +73,7 @@ func NewBasicWebsocketServer(uri string) *WebsocketServer {
 	return s
 }
 
+// RegisterProtocol registers a serializer that should be used for a given protocol string and payload type.
 func (s *WebsocketServer) RegisterProtocol(proto string, payloadType int, serializer Serializer) error {
 	log.Println("RegisterProtocol:", proto)
 	if payloadType != websocket.TextMessage && payloadType != websocket.BinaryMessage {
@@ -86,6 +87,7 @@ func (s *WebsocketServer) RegisterProtocol(proto string, payloadType int, serial
 	return nil
 }
 
+// ServeHTTP handles a new HTTP connection.
 func (s *WebsocketServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Println("WebsocketServer.ServeHTTP", r.Method, r.RequestURI)
 	// TODO: subprotocol?

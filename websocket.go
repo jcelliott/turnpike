@@ -12,7 +12,8 @@ type websocketPeer struct {
 	payloadType int
 }
 
-func NewWebsocketPeer(serialization int, url, origin string) (Peer, error) {
+// NewWebsocketPeer connects to the websocket server at the specified url.
+func NewWebsocketPeer(serialization Serialization, url, origin string) (Peer, error) {
 	switch serialization {
 	case JSON:
 		return newWebsocketPeer(url, jsonWebsocketProtocol, origin,

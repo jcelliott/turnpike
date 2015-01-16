@@ -5,6 +5,10 @@ import (
 	"time"
 )
 
+// A Sender can send a message to its peer.
+//
+// For clients, this sends a message to the router, and for routers,
+// this sends a message to the client.
 type Sender interface {
 	// Send a message to the peer
 	Send(Message) error
