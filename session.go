@@ -7,10 +7,10 @@ type Session struct {
 	kill chan URI
 }
 
-// Pipe creates two linked sessions. Messages sent to one will
+// localPipe creates two linked sessions. Messages sent to one will
 // appear in the Receive of the other. This is useful for implementing
 // client sessions
-func pipe() (*localPeer, *localPeer) {
+func localPipe() (*localPeer, *localPeer) {
 	aToB := make(chan Message, 10)
 	bToA := make(chan Message, 10)
 
@@ -29,14 +29,6 @@ func pipe() (*localPeer, *localPeer) {
 type localPeer struct {
 	outgoing chan<- Message
 	incoming <-chan Message
-}
-
-// Creates a local session that passes messages directly
-// into the Router.
-func NewLocalPeer(r Router) Peer {
-	a, b := pipe()
-	go r.Accept(a)
-	return b
 }
 
 func (s *localPeer) Receive() <-chan Message {

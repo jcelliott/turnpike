@@ -32,6 +32,7 @@ type Router interface {
 	Accept(Peer) error
 	Close() error
 	RegisterRealm(URI, Realm) error
+	GetLocalPeer(URI) (Peer, error)
 }
 
 // DefaultRouter is a very basic WAMP router.
@@ -193,6 +194,17 @@ func (r *defaultRouter) Accept(client Peer) error {
 	}
 
 	return nil
+}
+
+// GetLocalPeer returns an internal peer connected to the specified realm.
+// This is experimental, and allows creating WAMP routers with embedded clients.
+// Currently, the error will always be nil; but this is subject to change.
+func (r *defaultRouter) GetLocalPeer(realm URI) (Peer, error) {
+	peerA, peerB := localPipe()
+	sess := Session{Peer: peerA, Id: NewID(), kill: make(chan URI, 1)}
+	r.clients[realm] = append(r.clients[realm], sess)
+	go r.handleSession(sess, realm)
+	return peerB, nil
 }
 
 func (r *defaultRouter) authenticate(client Peer, realm Realm, details map[string]interface{}) (*Welcome, error) {

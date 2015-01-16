@@ -72,12 +72,12 @@ func newClient(p Peer) *Client {
 }
 
 // JoinRealm joins a WAMP realm, but does not handle challenge/response authentication.
-func (c *Client) JoinRealm(realm URI, roles int, details map[string]interface{}) (map[string]interface{}, error) {
+func (c *Client) JoinRealm(realm string, roles int, details map[string]interface{}) (map[string]interface{}, error) {
 	if details == nil {
 		details = map[string]interface{}{}
 	}
 	details["roles"] = createRolesMap(roles)
-	if err := c.Send(&Hello{Realm: realm, Details: details}); err != nil {
+	if err := c.Send(&Hello{Realm: URI(realm), Details: details}); err != nil {
 		c.Peer.Close()
 		return nil, err
 	}
@@ -99,7 +99,7 @@ func (c *Client) JoinRealm(realm URI, roles int, details map[string]interface{})
 type AuthFunc func(map[string]interface{}, map[string]interface{}) (string, map[string]interface{}, error)
 
 // JoinRealmAuth joins a WAMP realm and handles challenge/response authentication.
-func (c *Client) JoinRealmAuth(realm URI, roles int, details map[string]interface{}, auth map[string]AuthFunc) (map[string]interface{}, error) {
+func (c *Client) JoinRealmAuth(realm string, roles int, details map[string]interface{}, auth map[string]AuthFunc) (map[string]interface{}, error) {
 	if auth == nil || len(auth) == 0 {
 		return nil, fmt.Errorf("no authentication methods provided")
 	}
@@ -107,7 +107,7 @@ func (c *Client) JoinRealmAuth(realm URI, roles int, details map[string]interfac
 		return nil, fmt.Errorf("no details map provided")
 	}
 	details["roles"] = createRolesMap(roles)
-	if err := c.Send(&Hello{Realm: realm, Details: details}); err != nil {
+	if err := c.Send(&Hello{Realm: URI(realm), Details: details}); err != nil {
 		c.Peer.Close()
 		return nil, err
 	}
@@ -205,6 +205,7 @@ func (c *Client) nextID() ID {
 // This function blocks and is most commonly run in a goroutine.
 func (c *Client) Receive() {
 	for msg := range c.Peer.Receive() {
+
 		switch msg := msg.(type) {
 
 		case *Event:
@@ -303,13 +304,13 @@ func (c *Client) waitOnListener(id ID) (msg Message, err error) {
 type EventHandler func(args []interface{}, kwargs map[string]interface{})
 
 // Subscribe registers the EventHandler to be called for every message in the provided topic.
-func (c *Client) Subscribe(topic URI, fn EventHandler) error {
+func (c *Client) Subscribe(topic string, fn EventHandler) error {
 	id := c.nextID()
 	c.registerListener(id)
 	sub := &Subscribe{
 		Request: id,
 		Options: make(map[string]interface{}),
-		Topic:   topic,
+		Topic:   URI(topic),
 	}
 	if err := c.Send(sub); err != nil {
 		return err
@@ -333,13 +334,13 @@ func (c *Client) Subscribe(topic URI, fn EventHandler) error {
 type MethodHandler func(args []interface{}, kwargs map[string]interface{}) (result *CallResult)
 
 // Register registers a procedure with the router.
-func (c *Client) Register(procedure URI, fn MethodHandler) error {
+func (c *Client) Register(procedure string, fn MethodHandler) error {
 	id := c.nextID()
 	c.registerListener(id)
 	register := &Register{
 		Request:   id,
 		Options:   make(map[string]interface{}),
-		Procedure: procedure,
+		Procedure: URI(procedure),
 	}
 	if err := c.Send(register); err != nil {
 		return err
@@ -361,24 +362,24 @@ func (c *Client) Register(procedure URI, fn MethodHandler) error {
 }
 
 // Publish publishes an EVENT to all subscribed peers.
-func (c *Client) Publish(topic URI, args []interface{}, kwargs map[string]interface{}) error {
+func (c *Client) Publish(topic string, args []interface{}, kwargs map[string]interface{}) error {
 	return c.Send(&Publish{
 		Request:     c.nextID(),
 		Options:     make(map[string]interface{}),
-		Topic:       topic,
+		Topic:       URI(topic),
 		Arguments:   args,
 		ArgumentsKw: kwargs,
 	})
 }
 
 // Call calls a procedure given a URI.
-func (c *Client) Call(procedure URI, args []interface{}, kwargs map[string]interface{}) (Message, error) {
+func (c *Client) Call(procedure string, args []interface{}, kwargs map[string]interface{}) (Message, error) {
 	id := c.nextID()
 	c.registerListener(id)
 
 	call := &Call{
 		Request:     id,
-		Procedure:   procedure,
+		Procedure:   URI(procedure),
 		Options:     make(map[string]interface{}),
 		Arguments:   args,
 		ArgumentsKw: kwargs,

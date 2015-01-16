@@ -31,8 +31,8 @@ type protocol struct {
 
 // WebsocketServer handles websocket connections.
 type WebsocketServer struct {
+	Router
 	upgrader *websocket.Upgrader
-	router   Router
 
 	protocols map[string]protocol
 
@@ -55,21 +55,21 @@ func NewWebsocketServer(realms map[string]Realm) (*WebsocketServer, error) {
 	return s, nil
 }
 
+// Creates a new WebsocketServer with a single basic realm
+func NewBasicWebsocketServer(uri string) *WebsocketServer {
+	log.Println("NewBasicWebsocketServer")
+	s, _ := NewWebsocketServer(map[string]Realm{uri: {}})
+	return s
+}
+
 func newWebsocketServer(r Router) *WebsocketServer {
 	s := &WebsocketServer{
-		router:    r,
+		Router:    r,
 		protocols: make(map[string]protocol),
 	}
 	s.upgrader = &websocket.Upgrader{}
 	s.RegisterProtocol(jsonWebsocketProtocol, websocket.TextMessage, new(JSONSerializer))
 	s.RegisterProtocol(msgpackWebsocketProtocol, websocket.BinaryMessage, new(MessagePackSerializer))
-	return s
-}
-
-// Creates a new WebsocketServer with a single basic realm
-func NewBasicWebsocketServer(uri string) *WebsocketServer {
-	log.Println("NewBasicWebsocketServer")
-	s, _ := NewWebsocketServer(map[string]Realm{uri: {}})
 	return s
 }
 
@@ -87,13 +87,26 @@ func (s *WebsocketServer) RegisterProtocol(proto string, payloadType int, serial
 	return nil
 }
 
+// GetLocalClient returns a client connected to the specified realm
+func (s *WebsocketServer) GetLocalClient(realm string) (*Client, error) {
+	if peer, err := s.Router.GetLocalPeer(URI(realm)); err != nil {
+		return nil, err
+	} else {
+		c := newClient(peer)
+		go c.Receive()
+		return c, nil
+	}
+}
+
 // ServeHTTP handles a new HTTP connection.
 func (s *WebsocketServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Println("WebsocketServer.ServeHTTP", r.Method, r.RequestURI)
 	// TODO: subprotocol?
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		fmt.Println("Error:", err)
+		log.Println("Error upgrading to websocket connection:", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 	s.handleWebsocket(conn)
 }
@@ -144,5 +157,5 @@ func (s *WebsocketServer) handleWebsocket(conn *websocket.Conn) {
 			}
 		}
 	}()
-	s.router.Accept(&peer)
+	s.Router.Accept(&peer)
 }

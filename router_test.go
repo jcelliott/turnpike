@@ -44,7 +44,7 @@ func basicConnect(t *testing.T, client *basicPeer, server Peer) Router {
 }
 
 func TestHandshake(t *testing.T) {
-	c, server := pipe()
+	c, server := localPipe()
 
 	client := &basicPeer{c}
 	r := basicConnect(t, client, server)
@@ -65,7 +65,7 @@ func TestInvalidRealm(t *testing.T) {
 	r := NewDefaultRouter()
 	defer r.Close()
 
-	c, server := pipe()
+	c, server := localPipe()
 
 	client := &basicPeer{c}
 	client.Send(&Hello{Realm: "does.not.exist"})
@@ -84,7 +84,7 @@ func TestInvalidRealm(t *testing.T) {
 }
 
 func TestPublishNoAcknowledge(t *testing.T) {
-	c, server := pipe()
+	c, server := localPipe()
 	client := &basicPeer{c}
 	r := basicConnect(t, client, server)
 	defer r.Close()
@@ -101,7 +101,7 @@ func TestPublishNoAcknowledge(t *testing.T) {
 }
 
 func TestPublishAbsentAcknowledge(t *testing.T) {
-	c, server := pipe()
+	c, server := localPipe()
 	client := &basicPeer{c}
 	r := basicConnect(t, client, server)
 	defer r.Close()
@@ -118,7 +118,7 @@ func TestPublishAbsentAcknowledge(t *testing.T) {
 }
 
 func TestPublishAcknowledge(t *testing.T) {
-	c, server := pipe()
+	c, server := localPipe()
 	client := &basicPeer{c}
 	r := basicConnect(t, client, &basicPeer{server})
 	defer r.Close()
@@ -140,7 +140,7 @@ func TestPublishAcknowledge(t *testing.T) {
 func TestSubscribe(t *testing.T) {
 	const testTopic = URI("some.uri")
 
-	subPeer, subServer := pipe()
+	subPeer, subServer := localPipe()
 	sub := &basicPeer{subPeer}
 	r := basicConnect(t, sub, &basicPeer{subServer})
 	defer r.Close()
@@ -162,7 +162,7 @@ func TestSubscribe(t *testing.T) {
 		}
 	}
 
-	pubClient, pubServer := pipe()
+	pubClient, pubServer := localPipe()
 	pub := &basicPeer{pubClient}
 	pub.Send(&Hello{Realm: testRealm})
 	if err := r.Accept(&basicPeer{pubServer}); err != nil {
@@ -188,7 +188,7 @@ type basicCallee struct{}
 
 func TestCall(t *testing.T) {
 	const testProcedure = URI("turnpike.test.endpoint")
-	calleeClient, calleeServer := pipe()
+	calleeClient, calleeServer := localPipe()
 	callee := &basicPeer{calleeClient}
 	r := basicConnect(t, callee, &basicPeer{calleeServer})
 	defer r.Close()
@@ -211,7 +211,7 @@ func TestCall(t *testing.T) {
 		}
 	}
 
-	callerClient, callerServer := pipe()
+	callerClient, callerServer := localPipe()
 	caller := &basicPeer{callerClient}
 	caller.Send(&Hello{Realm: testRealm})
 	if err := r.Accept(&basicPeer{callerServer}); err != nil {
