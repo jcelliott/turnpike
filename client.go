@@ -5,9 +5,11 @@ import (
 	"time"
 )
 
+type Role int
+
 const (
 	// This client can publish events
-	PUBLISHER = 1 << iota
+	PUBLISHER Role = 1 << iota
 	// This client can subscribe to events
 	SUBSCRIBER
 	// This client can register RPC functions
@@ -72,7 +74,7 @@ func newClient(p Peer) *Client {
 }
 
 // JoinRealm joins a WAMP realm, but does not handle challenge/response authentication.
-func (c *Client) JoinRealm(realm string, roles int, details map[string]interface{}) (map[string]interface{}, error) {
+func (c *Client) JoinRealm(realm string, roles Role, details map[string]interface{}) (map[string]interface{}, error) {
 	if details == nil {
 		details = map[string]interface{}{}
 	}
@@ -99,7 +101,7 @@ func (c *Client) JoinRealm(realm string, roles int, details map[string]interface
 type AuthFunc func(map[string]interface{}, map[string]interface{}) (string, map[string]interface{}, error)
 
 // JoinRealmAuth joins a WAMP realm and handles challenge/response authentication.
-func (c *Client) JoinRealmAuth(realm string, roles int, details map[string]interface{}, auth map[string]AuthFunc) (map[string]interface{}, error) {
+func (c *Client) JoinRealmAuth(realm string, roles Role, details map[string]interface{}, auth map[string]AuthFunc) (map[string]interface{}, error) {
 	if auth == nil || len(auth) == 0 {
 		return nil, fmt.Errorf("no authentication methods provided")
 	}
@@ -143,7 +145,7 @@ func (c *Client) JoinRealmAuth(realm string, roles int, details map[string]inter
 	}
 }
 
-func createRolesMap(roles int) map[string]interface{} {
+func createRolesMap(roles Role) map[string]interface{} {
 	rolesMap := make(map[string]interface{})
 	if roles&PUBLISHER == PUBLISHER {
 		rolesMap["publisher"] = make(map[string]interface{})
