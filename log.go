@@ -16,6 +16,8 @@ var (
 func init() {
 	if devNull, err := os.Create(os.DevNull); err != nil {
 		panic("could not create logger: " + err.Error())
+	} else if os.Getenv("DEBUG") != "" {
+		log = glog.New(os.Stderr, "", logFlags)
 	} else {
 		log = glog.New(devNull, "", 0)
 	}

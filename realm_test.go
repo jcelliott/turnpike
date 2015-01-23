@@ -94,7 +94,6 @@ func testCRSign(challenge map[string]interface{}) string {
 }
 
 func TestCRAuthenticator(t *testing.T) {
-	Debug()
 	Convey("Given a realm with a challenge-response authenticator", t, func() {
 		realm := Realm{
 			CRAuthenticators: map[string]CRAuthenticator{
