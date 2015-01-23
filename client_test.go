@@ -128,7 +128,7 @@ func connectedTestClients() (*Client, *Client) {
 }
 
 func newTestClient(p Peer) *Client {
-	client := newClient(p)
+	client := NewClient(p)
 	_, err := client.JoinRealm("test.realm", ALLROLES, nil)
 	So(err, ShouldBeNil)
 	return client
@@ -139,7 +139,7 @@ func TestJoinRealm(t *testing.T) {
 		server := newTestPeer()
 
 		Convey("A client should be able to succesfully join a realm", func() {
-			client := newClient(server)
+			client := NewClient(server)
 			_, err := client.JoinRealm("test.realm", ALLROLES, nil)
 			So(err, ShouldBeNil)
 		})
@@ -162,7 +162,7 @@ func TestJoinRealmAuth(t *testing.T) {
 		Convey("A client should be able to successfully authenticate and join a realm", func() {
 			details := map[string]interface{}{"authmethods": []string{"testauth"}}
 			auth := map[string]AuthFunc{"testauth": testAuthFunc}
-			client := newClient(server)
+			client := NewClient(server)
 			_, err := client.JoinRealmAuth("test.realm", ALLROLES, details, auth)
 			So(err, ShouldBeNil)
 		})

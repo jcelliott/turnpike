@@ -57,10 +57,11 @@ func NewWebsocketClient(serialization Serialization, url string) (*Client, error
 	if err != nil {
 		return nil, err
 	}
-	return newClient(p), nil
+	return NewClient(p), nil
 }
 
-func newClient(p Peer) *Client {
+// NewClient takes a connected Peer and returns a new Client
+func NewClient(p Peer) *Client {
 	c := &Client{
 		Peer:           p,
 		ReceiveTimeout: 5 * time.Second,

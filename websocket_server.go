@@ -92,7 +92,7 @@ func (s *WebsocketServer) GetLocalClient(realm string) (*Client, error) {
 	if peer, err := s.Router.GetLocalPeer(URI(realm)); err != nil {
 		return nil, err
 	} else {
-		c := newClient(peer)
+		c := NewClient(peer)
 		go c.Receive()
 		return c, nil
 	}
