@@ -340,6 +340,13 @@ func (msg *Event) MessageType() MessageType {
 	return EVENT
 }
 
+// CallResult represents the result of a CALL.
+type CallResult struct {
+	Args   []interface{}
+	Kwargs map[string]interface{}
+	Err    URI
+}
+
 // [CALL, Request|id, Options|dict, Procedure|uri]
 // [CALL, Request|id, Options|dict, Procedure|uri, Arguments|list]
 // [CALL, Request|id, Options|dict, Procedure|uri, Arguments|list, ArgumentsKw|dict]

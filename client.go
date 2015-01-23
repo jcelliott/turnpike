@@ -255,18 +255,18 @@ func (c *Client) handleInvocation(msg *Invocation) {
 			tosend = &Yield{
 				Request:     msg.Request,
 				Options:     make(map[string]interface{}),
-				Arguments:   result.args,
-				ArgumentsKw: result.kwargs,
+				Arguments:   result.Args,
+				ArgumentsKw: result.Kwargs,
 			}
 
-			if result.err != "" {
+			if result.Err != "" {
 				tosend = &Error{
 					Type:        INVOCATION,
 					Request:     msg.Request,
 					Details:     make(map[string]interface{}),
-					Arguments:   result.args,
-					ArgumentsKw: result.kwargs,
-					Error:       result.err,
+					Arguments:   result.Args,
+					ArgumentsKw: result.Kwargs,
+					Error:       result.Err,
 				}
 			}
 

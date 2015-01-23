@@ -186,7 +186,7 @@ func TestRemoteCall(t *testing.T) {
 
 		Convey("The callee registers a valid method", func() {
 			handler := func(args []interface{}, kwargs map[string]interface{}) *CallResult {
-				return ValueResult(args[0].(int) * 2)
+				return &CallResult{Args: []interface{}{args[0].(int) * 2}}
 			}
 			err := callee.Register("mymethod", handler)
 

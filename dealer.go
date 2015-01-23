@@ -139,6 +139,7 @@ func (d *defaultDealer) Yield(callee Sender, msg *Yield) {
 				Error: URI("wamp.error.no_such_call"),
 			})
 		} else {
+			delete(d.calls, callID)
 			// return the result to the caller
 			caller.Send(&Result{
 				Request:     callID,
