@@ -63,7 +63,7 @@ const (
 )
 
 const (
-	MAX_ID = 1 << 53
+	maxId = 1 << 53
 )
 
 func init() {
@@ -72,5 +72,5 @@ func init() {
 
 // NewID generates a random WAMP ID.
 func NewID() ID {
-	return ID(rand.Intn(MAX_ID))
+	return ID(rand.Intn(maxId))
 }
