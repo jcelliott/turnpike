@@ -101,8 +101,8 @@ func (c *Client) JoinRealm(realm string, roles Role, details map[string]interfac
 // signature string and a details map
 type AuthFunc func(map[string]interface{}, map[string]interface{}) (string, map[string]interface{}, error)
 
-// JoinRealmAuth joins a WAMP realm and handles challenge/response authentication.
-func (c *Client) JoinRealmAuth(realm string, roles Role, details map[string]interface{}, auth map[string]AuthFunc) (map[string]interface{}, error) {
+// JoinRealmCRA joins a WAMP realm and handles challenge/response authentication.
+func (c *Client) JoinRealmCRA(realm string, roles Role, details map[string]interface{}, auth map[string]AuthFunc) (map[string]interface{}, error) {
 	if auth == nil || len(auth) == 0 {
 		return nil, fmt.Errorf("no authentication methods provided")
 	}

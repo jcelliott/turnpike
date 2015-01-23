@@ -155,7 +155,7 @@ func testAuthFunc(d map[string]interface{}, c map[string]interface{}) (string, m
 	return signature, map[string]interface{}{}, nil
 }
 
-func TestJoinRealmAuth(t *testing.T) {
+func TestJoinRealmCRA(t *testing.T) {
 	Convey("Given a server accepting client connections", t, func() {
 		server := newTestPeer()
 
@@ -163,7 +163,7 @@ func TestJoinRealmAuth(t *testing.T) {
 			details := map[string]interface{}{"authmethods": []string{"testauth"}}
 			auth := map[string]AuthFunc{"testauth": testAuthFunc}
 			client := NewClient(server)
-			_, err := client.JoinRealmAuth("test.realm", ALLROLES, details, auth)
+			_, err := client.JoinRealmCRA("test.realm", ALLROLES, details, auth)
 			So(err, ShouldBeNil)
 		})
 	})

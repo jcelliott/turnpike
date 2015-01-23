@@ -1,28 +1,5 @@
 package turnpike
 
-// type Publisher interface {
-// 	ErrorHandler
-//
-// 	// SendPublished sends acknowledgement that the Event has
-// 	// been successfully published.
-// 	SendPublished(*Published)
-// }
-//
-// // A Subscriber can subscribe to messages on a Topic URI.
-// type Subscriber interface {
-// 	ErrorHandler
-//
-// 	// SendEvent sends a Published Event to the client.
-// 	SendEvent(*Event)
-// 	// SendUnsubscribed sends an acknowledgement that the
-// 	// client has been unsubscribed from messages on the Topic.
-// 	SendUnsubscribed(*Unsubscribed)
-// 	// SendSubscribed sends an acknowledgement that the
-// 	// client has been subscribed to messages on the Topic.
-// 	SendSubscribed(*Subscribed)
-// }
-//
-
 // A broker handles routing EVENTS from Publishers to Subscribers.
 type Broker interface {
 	// Publishes a message to all Subscribers.

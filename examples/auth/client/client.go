@@ -37,7 +37,7 @@ func main() {
 	}
 	details := map[string]interface{}{"authmethods": []string{"example-auth"}}
 	auth := map[string]turnpike.AuthFunc{"example-auth": exampleAuthFunc}
-	_, err = c.JoinRealmAuth("turnpike.examples", turnpike.ALLROLES, details, auth)
+	_, err = c.JoinRealmCRA("turnpike.examples", turnpike.ALLROLES, details, auth)
 	if err != nil {
 		log.Fatal(err)
 	}

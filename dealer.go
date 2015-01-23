@@ -1,21 +1,5 @@
 package turnpike
 
-// type Callee interface {
-// 	ErrorHandler
-// 	// Acknowledge that the endpoint was succesfully registered
-// 	SendRegistered(*Registered)
-// 	// Acknowledge that the endpoint was succesfully unregistered
-// 	SendUnregistered(*Unregistered)
-// 	// Dealer requests fulfillment of a procedure call
-// 	SendInvocation(*Invocation)
-// }
-//
-// type Caller interface {
-// 	ErrorHandler
-// 	// Dealer sends the returned result from the procedure call
-// 	SendResult(*Result)
-// }
-
 // A Dealer routes and manages RPC calls to callees.
 type Dealer interface {
 	// Register a procedure on an endpoint
