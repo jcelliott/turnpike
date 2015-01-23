@@ -29,11 +29,11 @@ func main() {
 func alarmSet(args []interface{}, kwargs map[string]interface{}) (result *turnpike.CallResult) {
 	duration, ok := args[0].(float64)
 	if !ok {
-		return turnpike.SimpleErrorResult("rpc-example.invalid-argument")
+		return &turnpike.CallResult{Err: turnpike.URI("rpc-example.invalid-argument")}
 	}
 	go func() {
 		time.Sleep(time.Duration(duration) * time.Second)
 		client.Publish("alarm.ring", nil, nil)
 	}()
-	return turnpike.ValueResult("hello")
+	return &turnpike.CallResult{Args: []interface{}{"hello"}}
 }
