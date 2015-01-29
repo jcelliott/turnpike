@@ -5,12 +5,13 @@
 package turnpike
 
 import (
-	"code.google.com/p/go.net/websocket"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"math/rand"
+
+	"golang.org/x/net/websocket"
 )
 
 const (

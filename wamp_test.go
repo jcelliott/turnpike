@@ -6,8 +6,9 @@ package turnpike
 
 import (
 	"encoding/json"
-	"github.com/stretchrcom/testify/assert"
 	"testing"
+
+	"github.com/stretchrcom/testify/assert"
 )
 
 type testObj struct {

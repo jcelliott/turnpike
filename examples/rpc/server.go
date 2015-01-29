@@ -1,8 +1,9 @@
 package main
 
 import (
-	"github.com/jcelliott/turnpike"
 	"net/http"
+
+	"gopkg.in/jcelliott/turnpike.v1"
 )
 
 func handleTest(client, uri string, args ...interface{}) (interface{}, error) {

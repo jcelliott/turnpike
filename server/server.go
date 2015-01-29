@@ -5,11 +5,13 @@
 package main
 
 import (
-	"code.google.com/p/go.net/websocket"
 	"fmt"
 	"log"
 	"net/http"
-	"turnpike"
+
+	"golang.org/x/net/websocket"
+
+	"gopkg.in/jcelliott/turnpike.v1"
 )
 
 func main() {

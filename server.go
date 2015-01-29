@@ -5,16 +5,18 @@
 package turnpike
 
 import (
-	"code.google.com/p/go.net/websocket"
 	"encoding/json"
 	"fmt"
-	"github.com/nu7hatch/gouuid"
 	"io"
 	"log"
 	"net"
 	"net/http"
 	"sync"
 	"time"
+
+	"golang.org/x/net/websocket"
+
+	"github.com/nu7hatch/gouuid"
 )
 
 var (

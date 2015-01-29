@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/jcelliott/turnpike"
 	"log"
 	"net/http"
+
+	"gopkg.in/jcelliott/turnpike.v1"
 )
 
 func main() {

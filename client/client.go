@@ -10,7 +10,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"turnpike"
+
+	"gopkg.in/jcelliott/turnpike.v1"
 )
 
 func main() {

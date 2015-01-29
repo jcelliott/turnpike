@@ -1,7 +1,7 @@
 package turnpike_test
 
 import (
-	"github.com/jcelliott/turnpike"
+	"gopkg.in/jcelliott/turnpike.v1"
 )
 
 func ExampleClient_NewClient() {
