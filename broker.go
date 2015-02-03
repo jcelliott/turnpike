@@ -76,6 +76,7 @@ func (br *defaultBroker) Unsubscribe(sub Sender, msg *Unsubscribe) {
 		sub.Send(err)
 		return
 	}
+	delete(br.subscriptions, msg.Subscription)
 
 	if r, ok := br.routes[topic]; !ok {
 		err := &Error{
@@ -98,11 +99,4 @@ func (br *defaultBroker) Unsubscribe(sub Sender, msg *Unsubscribe) {
 		}
 		sub.Send(&Unsubscribed{Request: msg.Request})
 	}
-}
-
-func spliceSubscribers(subs []Sender, i int) []Sender {
-	if i == len(subs)-1 {
-		return subs[:i]
-	}
-	return append(subs[:i], subs[i+1:]...)
 }

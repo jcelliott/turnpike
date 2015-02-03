@@ -137,7 +137,7 @@ func TestPublishAcknowledge(t *testing.T) {
 	}
 }
 
-func TestSubscribe(t *testing.T) {
+func TestRouterSubscribe(t *testing.T) {
 	const testTopic = URI("some.uri")
 
 	subPeer, subServer := localPipe()
@@ -186,7 +186,7 @@ func TestSubscribe(t *testing.T) {
 
 type basicCallee struct{}
 
-func TestCall(t *testing.T) {
+func TestRouterCall(t *testing.T) {
 	const testProcedure = URI("turnpike.test.endpoint")
 	calleeClient, calleeServer := localPipe()
 	callee := &basicPeer{calleeClient}
