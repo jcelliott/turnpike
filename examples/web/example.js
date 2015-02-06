@@ -3,54 +3,61 @@
 
 	var conn,
 		session,
+		renderer,
 		stage,
-		layer,
 		colo,
 		channel = 'my.turnpike.chat';
 
 	function drawCircle(x, y, color) {
-		var circ = new Kinetic.Circle({
-			x: x,
-			y: y,
-			radius: 0,
-			fill: color,
-		});
+		var g = new PIXI.Graphics(),
+			fields = {
+				radius: 0,
+				opacity: 1,
+			};
 
-		layer.add(circ);
-		circ.tween = new Kinetic.Tween({
-			node: circ,
-			radius: 75,
-			opacity: 0,
-			easing: Kinetic.Easings.EaseIn,
-			duration: 1,
-			onFinish: function () {
-				circ.remove();
-			}
-		});
-		circ.tween.play();
+		console.log("X:", x, "Y:", y);
+		stage.addChild(g);
+
+		function handleChange() {
+			console.log("Radius:", fields.radius, "Opacity:", fields.opacity);
+			g.clear();
+			g.beginFill(color, fields.opacity);
+			g.drawCircle(x, y, fields.radius);
+			g.endFill();
+		}
+
+		function remove() {
+			stage.removeChild(g);
+		}
+
+		console.log("Drawing circle");
+		createjs.Tween.get(fields).to({radius: 75, opacity: 0}, 1000).addEventListener('change', handleChange).call(remove);
 	}
 
 	function randColor() {
-		return 'rgb(' + Math.random() + ',' + Math.random() + ',' + Math.random() + ')';
+		return (Math.random()*255 << 16) | (Math.random()*255 << 8) | (Math.random()*255);
 	}
 
-	function initKinectic() {
+	function draw() {
+		renderer.render(stage);
+		window.requestAnimationFrame(draw);
+	}
+
+	function initDrawing() {
 		colo = randColor();
 
-		stage = new Kinetic.Stage({
-			container: 'container',
-			width: window.innerWidth,
-			height: window.innerHeight,
-		});
+		renderer = new PIXI.autoDetectRenderer(window.innerWidth, window.innerHeight);
 
-		layer = new Kinetic.Layer();
-		stage.add(layer);
+		document.body.appendChild(renderer.view);
+		stage = new PIXI.Stage();
 
 		// add click and tap handlers
-		stage.on('contentClick', function () {
-			var mousePos = stage.getPointerPosition();
+		renderer.view.addEventListener('click', function (e) {
+			var mousePos = stage.getMousePosition();
 			session.publish(channel, [mousePos.x, mousePos.y, colo]);
 		});
+
+		window.requestAnimationFrame(draw);
 	}
 
 	function initAutobahn() {
@@ -73,7 +80,7 @@
 
 	function init() {
 		initAutobahn();
-		initKinectic();
+		initDrawing();
 	}
 
 	window.addEventListener('load', init);
