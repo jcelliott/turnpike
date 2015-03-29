@@ -127,6 +127,7 @@ func (d *defaultDealer) Yield(callee Sender, msg *Yield) {
 			// return the result to the caller
 			caller.Send(&Result{
 				Request:     callID,
+				Details:     map[string]interface{}{},
 				Arguments:   msg.Arguments,
 				ArgumentsKw: msg.ArgumentsKw,
 			})
