@@ -98,6 +98,7 @@ func (d *defaultDealer) Call(caller Sender, msg *Call) {
 			rproc.Endpoint.Send(&Invocation{
 				Request:      invocationID,
 				Registration: reg,
+				Details: map[string]interface{}{},
 				Arguments:    msg.Arguments,
 				ArgumentsKw:  msg.ArgumentsKw,
 			})
