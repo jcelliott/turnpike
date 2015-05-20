@@ -237,6 +237,12 @@ func (c *Client) Receive() {
 		case *Subscribed:
 			c.notifyListener(msg, msg.Request)
 
+		case *Unsubscribed:
+			c.notifyListener(msg, msg.Request)
+
+		case *Unregistered:
+			c.notifyListener(msg, msg.Request)
+
 		case *Result:
 			c.notifyListener(msg, msg.Request)
 
@@ -368,7 +374,7 @@ func (c *Client) Unsubscribe(topic string) error {
 	if err := c.Send(sub); err != nil {
 		return err
 	}
-	// wait to receive SUBSCRIBED message
+	// wait to receive UNSUBSCRIBED message
 	msg, err := c.waitOnListener(id)
 	if err != nil {
 		return err
