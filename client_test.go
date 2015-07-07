@@ -199,7 +199,7 @@ func TestRemoteCall(t *testing.T) {
 
 					Convey("And succeeds at multiplying the number by 2", func() {
 						So(err, ShouldBeNil)
-						So(result.(*Result).Arguments[0], ShouldEqual, 10200)
+						So(result.Arguments[0], ShouldEqual, 10200)
 					})
 				})
 			})
@@ -217,7 +217,7 @@ func TestClientCall(t *testing.T) {
 
 			Convey("And expects a result", func() {
 				So(err, ShouldBeNil)
-				So(result.(*Result).Arguments[0], ShouldEqual, 1234)
+				So(result.Arguments[0], ShouldEqual, 1234)
 			})
 		})
 

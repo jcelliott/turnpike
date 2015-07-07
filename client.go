@@ -376,7 +376,7 @@ func (c *Client) Publish(topic string, args []interface{}, kwargs map[string]int
 }
 
 // Call calls a procedure given a URI.
-func (c *Client) Call(procedure string, args []interface{}, kwargs map[string]interface{}) (Message, error) {
+func (c *Client) Call(procedure string, args []interface{}, kwargs map[string]interface{}) (*Result, error) {
 	id := c.nextID()
 	c.registerListener(id)
 
@@ -397,9 +397,9 @@ func (c *Client) Call(procedure string, args []interface{}, kwargs map[string]in
 		return nil, err
 	} else if e, ok := msg.(*Error); ok {
 		return nil, fmt.Errorf("error registering to procedure '%v': %v", procedure, e.Error)
-	} else if _, ok := msg.(*Result); !ok {
+	} else if result, ok := msg.(*Result); !ok {
 		return nil, fmt.Errorf(formatUnexpectedMessage(msg, RESULT))
 	} else {
-		return msg, nil
+		return result, nil
 	}
 }
