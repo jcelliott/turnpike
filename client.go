@@ -354,7 +354,7 @@ func (c *Client) Register(procedure string, fn MethodHandler) error {
 	if err != nil {
 		return err
 	} else if e, ok := msg.(*Error); ok {
-		return fmt.Errorf("error registering to procedure '%v': %v", procedure, e.Error)
+		return fmt.Errorf("error registering procedure '%v': %v", procedure, e.Error)
 	} else if registered, ok := msg.(*Registered); !ok {
 		return fmt.Errorf(formatUnexpectedMessage(msg, REGISTERED))
 	} else {
@@ -396,7 +396,7 @@ func (c *Client) Call(procedure string, args []interface{}, kwargs map[string]in
 	if err != nil {
 		return nil, err
 	} else if e, ok := msg.(*Error); ok {
-		return nil, fmt.Errorf("error registering to procedure '%v': %v", procedure, e.Error)
+		return nil, fmt.Errorf("error calling procedure '%v': %v", procedure, e.Error)
 	} else if result, ok := msg.(*Result); !ok {
 		return nil, fmt.Errorf(formatUnexpectedMessage(msg, RESULT))
 	} else {
