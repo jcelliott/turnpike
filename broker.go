@@ -3,23 +3,23 @@ package turnpike
 // A broker handles routing EVENTS from Publishers to Subscribers.
 type Broker interface {
 	// Publishes a message to all Subscribers.
-	Publish(Sender, *Publish)
+	Publish(Session, *Publish)
 	// Subscribes to messages on a URI.
-	Subscribe(Sender, *Subscribe)
+	Subscribe(Session, *Subscribe)
 	// Unsubscribes from messages on a URI.
-	Unsubscribe(Sender, *Unsubscribe)
+	Unsubscribe(Session, *Unsubscribe)
 }
 
 // A super simple broker that matches URIs to Subscribers.
 type defaultBroker struct {
-	routes        map[URI]map[ID]Sender
+	routes        map[URI]map[ID]Session
 	subscriptions map[ID]URI
 }
 
 // NewDefaultBroker initializes and returns a simple broker that matches URIs to Subscribers.
 func NewDefaultBroker() Broker {
 	return &defaultBroker{
-		routes:        make(map[URI]map[ID]Sender),
+		routes:        make(map[URI]map[ID]Session),
 		subscriptions: make(map[ID]URI),
 	}
 }
@@ -28,7 +28,7 @@ func NewDefaultBroker() Broker {
 //
 // If msg.Options["acknowledge"] == true, the publisher receives a Published event
 // after the message has been sent to all subscribers.
-func (br *defaultBroker) Publish(pub Sender, msg *Publish) {
+func (br *defaultBroker) Publish(pub Session, msg *Publish) {
 	pubId := NewID()
 	evtTemplate := Event{
 		Publication: pubId,
@@ -41,7 +41,7 @@ func (br *defaultBroker) Publish(pub Sender, msg *Publish) {
 		event := evtTemplate
 		event.Subscription = id
 		// don't send event to publisher
-		if sub != pub {
+		if sub.Id != pub.Id {
 			sub.Send(&event)
 		}
 	}
@@ -53,19 +53,19 @@ func (br *defaultBroker) Publish(pub Sender, msg *Publish) {
 }
 
 // Subscribe subscribes the client to the given topic.
-func (br *defaultBroker) Subscribe(sub Sender, msg *Subscribe) {
+func (br *defaultBroker) Subscribe(session Session, msg *Subscribe) {
 	if _, ok := br.routes[msg.Topic]; !ok {
-		br.routes[msg.Topic] = make(map[ID]Sender)
+		br.routes[msg.Topic] = make(map[ID]Session)
 	}
 	id := NewID()
-	br.routes[msg.Topic][id] = sub
+	br.routes[msg.Topic][id] = session
 
 	br.subscriptions[id] = msg.Topic
 
-	sub.Send(&Subscribed{Request: msg.Request, Subscription: id})
+	session.Peer.Send(&Subscribed{Request: msg.Request, Subscription: id})
 }
 
-func (br *defaultBroker) Unsubscribe(sub Sender, msg *Unsubscribe) {
+func (br *defaultBroker) Unsubscribe(session Session, msg *Unsubscribe) {
 	topic, ok := br.subscriptions[msg.Subscription]
 	if !ok {
 		err := &Error{
@@ -73,7 +73,7 @@ func (br *defaultBroker) Unsubscribe(sub Sender, msg *Unsubscribe) {
 			Request: msg.Request,
 			Error:   WAMP_ERROR_NO_SUCH_SUBSCRIPTION,
 		}
-		sub.Send(err)
+		session.Peer.Send(err)
 		return
 	}
 	delete(br.subscriptions, msg.Subscription)
@@ -84,19 +84,19 @@ func (br *defaultBroker) Unsubscribe(sub Sender, msg *Unsubscribe) {
 			Request: msg.Request,
 			Error:   URI("wamp.error.internal_error"),
 		}
-		sub.Send(err)
+		session.Peer.Send(err)
 	} else if _, ok := r[msg.Subscription]; !ok {
 		err := &Error{
 			Type:    msg.MessageType(),
 			Request: msg.Request,
 			Error:   URI("wamp.error.internal_error"),
 		}
-		sub.Send(err)
+		session.Peer.Send(err)
 	} else {
 		delete(r, msg.Subscription)
 		if len(r) == 0 {
 			delete(br.routes, topic)
 		}
-		sub.Send(&Unsubscribed{Request: msg.Request})
+		session.Peer.Send(&Unsubscribed{Request: msg.Request})
 	}
 }
