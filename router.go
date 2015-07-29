@@ -33,6 +33,7 @@ type Router interface {
 	Close() error
 	RegisterRealm(URI, Realm) error
 	GetLocalPeer(URI) (Peer, error)
+	AddSessionOpenCallback(func(uint, string))
 }
 
 // DefaultRouter is a very basic WAMP router.
@@ -40,20 +41,26 @@ type defaultRouter struct {
 	Broker
 	Dealer
 
-	realms  map[URI]Realm
-	clients map[URI][]Session
-	closing bool
-	lastId  int
+	realms               map[URI]Realm
+	clients              map[URI][]Session
+	closing              bool
+	lastId               int
+	sessionOpenCallbacks []func(uint, string)
 }
 
 // NewDefaultRouter creates a very basic WAMP router.
 func NewDefaultRouter() Router {
 	return &defaultRouter{
-		Broker:  NewDefaultBroker(),
-		Dealer:  NewDefaultDealer(),
-		realms:  make(map[URI]Realm),
-		clients: make(map[URI][]Session),
+		Broker:               NewDefaultBroker(),
+		Dealer:               NewDefaultDealer(),
+		realms:               make(map[URI]Realm),
+		clients:              make(map[URI][]Session),
+		sessionOpenCallbacks: []func(uint, string){},
 	}
+}
+
+func (r *defaultRouter) AddSessionOpenCallback(fn func(uint, string)) {
+	r.sessionOpenCallbacks = append(r.sessionOpenCallbacks, fn)
 }
 
 func (r *defaultRouter) Close() error {
@@ -93,10 +100,12 @@ func (r *defaultRouter) handleSession(sess Session, realmURI URI) {
 		select {
 		case msg, open = <-c:
 			if !open {
+				log.Println("lost session:", sess.Id)
 				return
 			}
 		case reason := <-sess.kill:
 			sess.Send(&Goodbye{Reason: reason, Details: make(map[string]interface{})})
+			log.Println("kill session:", sess.Id)
 			// TODO: wait for client Goodbye?
 			return
 		}
@@ -189,6 +198,9 @@ func (r *defaultRouter) Accept(client Peer) error {
 
 			sess := Session{Peer: client, Id: id, kill: make(chan URI, 1)}
 			r.clients[hello.Realm] = append(r.clients[hello.Realm], sess)
+			for _, callback := range r.sessionOpenCallbacks {
+				go callback(uint(sess.Id), string(hello.Realm))
+			}
 			go r.handleSession(sess, hello.Realm)
 		}
 	}
