@@ -47,7 +47,7 @@ type Client struct {
 	// roles          int
 	listeners    map[ID]chan Message
 	events       map[ID]EventHandler
-	procedures   map[ID]MethodHandler
+	procedures   map[ID]FullMethodHandler
 	requestCount uint
 }
 
@@ -68,7 +68,7 @@ func NewClient(p Peer) *Client {
 		// roles:          roles,
 		listeners:    make(map[ID]chan Message),
 		events:       make(map[ID]EventHandler),
-		procedures:   make(map[ID]MethodHandler),
+		procedures:   make(map[ID]FullMethodHandler),
 		requestCount: 0,
 	}
 	return c
@@ -251,8 +251,9 @@ func (c *Client) notifyListener(msg Message, requestId ID) {
 
 func (c *Client) handleInvocation(msg *Invocation) {
 	if fn, ok := c.procedures[msg.Registration]; ok {
+		msg.ArgumentsKw = map[string]interface{}{"data": *msg}
 		go func() {
-			result := fn(msg.Arguments, msg.ArgumentsKw)
+			result := fn(msg.Arguments, msg.ArgumentsKw, msg.Details)
 
 			var tosend Message
 			tosend = &Yield{
@@ -333,16 +334,26 @@ func (c *Client) Subscribe(topic string, fn EventHandler) error {
 	return nil
 }
 
-// MethodHandler is an RPC endpoint.
+// MethodHandler is a simple RPC endpoint.
 type MethodHandler func(args []interface{}, kwargs map[string]interface{}) (result *CallResult)
+
+// MethodHandler is a full RPC endpoint.
+type FullMethodHandler func(args []interface{}, kwargs map[string]interface{}, details map[string]interface{}) (result *CallResult)
 
 // Register registers a procedure with the router.
 func (c *Client) Register(procedure string, fn MethodHandler) error {
+	return c.RegisterFull(procedure, func(args []interface{}, kwargs map[string]interface{}, details map[string]interface{}) (result *CallResult) {
+		return fn(args, kwargs)
+	}, make(map[string]interface{}))
+}
+
+// RegisterFull registers a procedure with the router including passing options.
+func (c *Client) RegisterFull(procedure string, fn FullMethodHandler, options map[string]interface{}) error {
 	id := c.nextID()
 	c.registerListener(id)
 	register := &Register{
 		Request:   id,
-		Options:   make(map[string]interface{}),
+		Options:   options,
 		Procedure: URI(procedure),
 	}
 	if err := c.Send(register); err != nil {
