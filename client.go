@@ -307,6 +307,14 @@ func (c *Client) handleInvocation(msg *Invocation) {
 		}()
 	} else {
 		log.Println("no handler registered for registration:", msg.Registration)
+		if err := c.Send(&Error{
+			Type:    INVOCATION,
+			Request: msg.Request,
+			Details: make(map[string]interface{}),
+			Error:   URI(fmt.Sprintf("no handler for registration: %v", msg.Registration)),
+		}); err != nil {
+			log.Println("error sending message:", err)
+		}
 	}
 }
 

@@ -122,6 +122,10 @@ func (t *testPeer) Send(msg Message) error {
 				ArgumentsKw: make(map[string]interface{}),
 			}
 		}
+
+	case *Error:
+		// forward error messages
+		t.messages <- msg
 	}
 
 	return nil
