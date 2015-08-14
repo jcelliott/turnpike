@@ -64,7 +64,7 @@ func NewWebsocketClient(serialization Serialization, url string) (*Client, error
 func NewClient(p Peer) *Client {
 	c := &Client{
 		Peer:           p,
-		ReceiveTimeout: 5 * time.Second,
+		ReceiveTimeout: 10 * time.Second,
 		// roles:          roles,
 		listeners:    make(map[ID]chan Message),
 		events:       make(map[ID]EventHandler),
@@ -198,10 +198,10 @@ func (c *Client) Close() {
 	c.Peer.Close()
 }
 
-func (c *Client) nextID() ID {
-	c.requestCount++
-	return ID(c.requestCount)
-}
+// func (c *Client) nextID() ID {
+// 	c.requestCount++
+// 	return ID(c.requestCount)
+// }
 
 // Receive handles messages from the server until this client disconnects.
 //
@@ -233,11 +233,15 @@ func (c *Client) Receive() {
 		case *Error:
 			c.notifyListener(msg, msg.Request)
 
+		case *Goodbye:
+			log.Println("client received Goodbye message")
+			break
+
 		default:
 			log.Println("unhandled message:", msg.MessageType(), msg)
 		}
 	}
-	log.Fatal("Receive buffer closed")
+	log.Println("client closed")
 }
 
 func (c *Client) notifyListener(msg Message, requestId ID) {
@@ -274,7 +278,7 @@ func (c *Client) handleInvocation(msg *Invocation) {
 			}
 
 			if err := c.Send(tosend); err != nil {
-				log.Fatal(err)
+				log.Println("error sending message:", err)
 			}
 		}()
 	} else {
@@ -308,7 +312,7 @@ type EventHandler func(args []interface{}, kwargs map[string]interface{})
 
 // Subscribe registers the EventHandler to be called for every message in the provided topic.
 func (c *Client) Subscribe(topic string, fn EventHandler) error {
-	id := c.nextID()
+	id := NewID()
 	c.registerListener(id)
 	sub := &Subscribe{
 		Request: id,
@@ -338,7 +342,7 @@ type MethodHandler func(args []interface{}, kwargs map[string]interface{}) (resu
 
 // Register registers a procedure with the router.
 func (c *Client) Register(procedure string, fn MethodHandler) error {
-	id := c.nextID()
+	id := NewID()
 	c.registerListener(id)
 	register := &Register{
 		Request:   id,
@@ -367,7 +371,7 @@ func (c *Client) Register(procedure string, fn MethodHandler) error {
 // Publish publishes an EVENT to all subscribed peers.
 func (c *Client) Publish(topic string, args []interface{}, kwargs map[string]interface{}) error {
 	return c.Send(&Publish{
-		Request:     c.nextID(),
+		Request:     NewID(),
 		Options:     make(map[string]interface{}),
 		Topic:       URI(topic),
 		Arguments:   args,
@@ -377,7 +381,7 @@ func (c *Client) Publish(topic string, args []interface{}, kwargs map[string]int
 
 // Call calls a procedure given a URI.
 func (c *Client) Call(procedure string, args []interface{}, kwargs map[string]interface{}) (*Result, error) {
-	id := c.nextID()
+	id := NewID()
 	c.registerListener(id)
 
 	call := &Call{
