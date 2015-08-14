@@ -188,14 +188,22 @@ func formatUnknownMap(m map[string]interface{}) string {
 }
 
 // LeaveRealm leaves the current realm without closing the connection to the server.
-func (c *Client) LeaveRealm() {
-	c.Send(goodbyeClient)
+func (c *Client) LeaveRealm() error {
+	if err := c.Send(goodbyeClient); err != nil {
+		return fmt.Errorf("error leaving realm: %v", err)
+	}
+	return nil
 }
 
 // Close closes the connection to the server.
-func (c *Client) Close() {
-	c.Send(goodbyeClient)
-	c.Peer.Close()
+func (c *Client) Close() error {
+	if err := c.LeaveRealm(); err != nil {
+		return err
+	}
+	if err := c.Peer.Close(); err != nil {
+		return fmt.Errorf("error closing client connection: %v", err)
+	}
+	return nil
 }
 
 // func (c *Client) nextID() ID {
