@@ -46,9 +46,19 @@ type Client struct {
 	ReceiveTimeout time.Duration
 	// roles          int
 	listeners    map[ID]chan Message
-	events       map[ID]EventHandler
-	procedures   map[ID]MethodHandler
+	events       map[ID]*eventDesc
+	procedures   map[ID]*procedureDesc
 	requestCount uint
+}
+
+type procedureDesc struct {
+	name    string
+	handler MethodHandler
+}
+
+type eventDesc struct {
+	topic   string
+	handler EventHandler
 }
 
 // Creates a new websocket client.
@@ -67,8 +77,8 @@ func NewClient(p Peer) *Client {
 		ReceiveTimeout: 10 * time.Second,
 		// roles:          roles,
 		listeners:    make(map[ID]chan Message),
-		events:       make(map[ID]EventHandler),
-		procedures:   make(map[ID]MethodHandler),
+		events:       make(map[ID]*eventDesc),
+		procedures:   make(map[ID]*procedureDesc),
 		requestCount: 0,
 	}
 	return c
@@ -220,8 +230,8 @@ func (c *Client) Receive() {
 		switch msg := msg.(type) {
 
 		case *Event:
-			if fn, ok := c.events[msg.Subscription]; ok {
-				go fn(msg.Arguments, msg.ArgumentsKw)
+			if event, ok := c.events[msg.Subscription]; ok {
+				go event.handler(msg.Arguments, msg.ArgumentsKw)
 			} else {
 				log.Println("no handler registered for subscription:", msg.Subscription)
 			}
@@ -233,6 +243,12 @@ func (c *Client) Receive() {
 			c.notifyListener(msg, msg.Request)
 
 		case *Subscribed:
+			c.notifyListener(msg, msg.Request)
+
+		case *Unsubscribed:
+			c.notifyListener(msg, msg.Request)
+
+		case *Unregistered:
 			c.notifyListener(msg, msg.Request)
 
 		case *Result:
@@ -262,9 +278,9 @@ func (c *Client) notifyListener(msg Message, requestId ID) {
 }
 
 func (c *Client) handleInvocation(msg *Invocation) {
-	if fn, ok := c.procedures[msg.Registration]; ok {
+	if proc, ok := c.procedures[msg.Registration]; ok {
 		go func() {
-			result := fn(msg.Arguments, msg.ArgumentsKw)
+			result := proc.handler(msg.Arguments, msg.ArgumentsKw)
 
 			var tosend Message
 			tosend = &Yield{
@@ -340,8 +356,46 @@ func (c *Client) Subscribe(topic string, fn EventHandler) error {
 		return fmt.Errorf(formatUnexpectedMessage(msg, SUBSCRIBED))
 	} else {
 		// register the event handler with this subscription
-		c.events[subscribed.Subscription] = fn
+		c.events[subscribed.Subscription] = &eventDesc{topic, fn}
 	}
+	return nil
+}
+
+// Unsubscribe removes the registered EventHandler from the topic.
+func (c *Client) Unsubscribe(topic string) error {
+	var (
+		subscriptionID ID
+		found          bool
+	)
+	for id, desc := range c.events {
+		if desc.topic == topic {
+			subscriptionID = id
+			found = true
+		}
+	}
+	if !found {
+		return fmt.Errorf("Event %s is not registered with this client.", topic)
+	}
+
+	id := NewID()
+	c.registerListener(id)
+	sub := &Unsubscribe{
+		Request:      id,
+		Subscription: subscriptionID,
+	}
+	if err := c.Send(sub); err != nil {
+		return err
+	}
+	// wait to receive UNSUBSCRIBED message
+	msg, err := c.waitOnListener(id)
+	if err != nil {
+		return err
+	} else if e, ok := msg.(*Error); ok {
+		return fmt.Errorf("error unsubscribing to topic '%v': %v", topic, e.Error)
+	} else if _, ok := msg.(*Unsubscribed); !ok {
+		return fmt.Errorf(formatUnexpectedMessage(msg, UNSUBSCRIBED))
+	}
+	delete(c.events, subscriptionID)
 	return nil
 }
 
@@ -371,8 +425,47 @@ func (c *Client) Register(procedure string, fn MethodHandler) error {
 		return fmt.Errorf(formatUnexpectedMessage(msg, REGISTERED))
 	} else {
 		// register the event handler with this registration
-		c.procedures[registered.Registration] = fn
+		c.procedures[registered.Registration] = &procedureDesc{procedure, fn}
 	}
+	return nil
+}
+
+// Unregister removes a procedure with the router
+func (c *Client) Unregister(procedure string) error {
+	var (
+		procedureID ID
+		found       bool
+	)
+	for id, p := range c.procedures {
+		if p.name == procedure {
+			procedureID = id
+			found = true
+		}
+	}
+	if !found {
+		return fmt.Errorf("Procedure %s is not registered with this client.", procedure)
+	}
+	id := NewID()
+	c.registerListener(id)
+	unregister := &Unregister{
+		Request:      id,
+		Registration: procedureID,
+	}
+	if err := c.Send(unregister); err != nil {
+		return err
+	}
+
+	// wait to receive UNREGISTERED message
+	msg, err := c.waitOnListener(id)
+	if err != nil {
+		return err
+	} else if e, ok := msg.(*Error); ok {
+		return fmt.Errorf("error unregister to procedure '%v': %v", procedure, e.Error)
+	} else if _, ok := msg.(*Unregistered); !ok {
+		return fmt.Errorf(formatUnexpectedMessage(msg, UNREGISTERED))
+	}
+	// register the event handler with this unregistration
+	delete(c.procedures, procedureID)
 	return nil
 }
 
