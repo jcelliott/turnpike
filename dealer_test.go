@@ -32,7 +32,9 @@ func TestRegister(t *testing.T) {
 		Convey("The same procedure cannot be registered more than once", func() {
 			msg := &Register{Request: 321, Procedure: testProcedure}
 			dealer.Register(callee, msg)
-			So(callee.received, ShouldHaveSameTypeAs, &Error{})
+			err := callee.received.(*Error)
+			So(err.Error, ShouldEqual, WAMP_ERROR_PROCEDURE_ALREADY_EXISTS)
+			So(err.Details, ShouldNotBeNil)
 		})
 	})
 }
@@ -77,8 +79,9 @@ func TestCall(t *testing.T) {
 			dealer.Call(caller, msg)
 
 			Convey("The caller should have received an ERROR message", func() {
-				err := caller.received.(*Error).Error
-				So(err, ShouldEqual, WAMP_ERROR_NO_SUCH_PROCEDURE)
+				err := caller.received.(*Error)
+				So(err.Error, ShouldEqual, WAMP_ERROR_NO_SUCH_PROCEDURE)
+				So(err.Details, ShouldNotBeNil)
 			})
 		})
 

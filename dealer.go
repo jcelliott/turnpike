@@ -40,10 +40,12 @@ func NewDefaultDealer() Dealer {
 }
 
 func (d *defaultDealer) Register(callee Sender, msg *Register) {
-	if _, ok := d.registrations[msg.Procedure]; ok {
+	if id, ok := d.registrations[msg.Procedure]; ok {
+		log.Println("error: procedure already exists:", msg.Procedure, id)
 		callee.Send(&Error{
 			Type:    msg.MessageType(),
 			Request: msg.Request,
+			Details: make(map[string]interface{}),
 			Error:   WAMP_ERROR_PROCEDURE_ALREADY_EXISTS,
 		})
 		return
@@ -60,9 +62,11 @@ func (d *defaultDealer) Register(callee Sender, msg *Register) {
 func (d *defaultDealer) Unregister(callee Sender, msg *Unregister) {
 	if procedure, ok := d.procedures[msg.Registration]; !ok {
 		// the registration doesn't exist
+		log.Println("error: no such registration:", msg.Registration)
 		callee.Send(&Error{
 			Type:    msg.MessageType(),
 			Request: msg.Request,
+			Details: make(map[string]interface{}),
 			Error:   WAMP_ERROR_NO_SUCH_REGISTRATION,
 		})
 	} else {
@@ -79,6 +83,7 @@ func (d *defaultDealer) Call(caller Sender, msg *Call) {
 		caller.Send(&Error{
 			Type:    msg.MessageType(),
 			Request: msg.Request,
+			Details: make(map[string]interface{}),
 			Error:   WAMP_ERROR_NO_SUCH_PROCEDURE,
 		})
 	} else {
@@ -87,42 +92,38 @@ func (d *defaultDealer) Call(caller Sender, msg *Call) {
 			caller.Send(&Error{
 				Type:    msg.MessageType(),
 				Request: msg.Request,
+				Details: make(map[string]interface{}),
 				// TODO: what should this error be?
 				Error: URI("wamp.error.internal_error"),
 			})
 		} else {
 			// everything checks out, make the invocation request
+			// TODO: make the Request ID specific to the caller
 			d.calls[msg.Request] = caller
 			invocationID := NewID()
 			d.invocations[invocationID] = msg.Request
 			rproc.Endpoint.Send(&Invocation{
 				Request:      invocationID,
 				Registration: reg,
-				Details: map[string]interface{}{},
+				Details:      map[string]interface{}{},
 				Arguments:    msg.Arguments,
 				ArgumentsKw:  msg.ArgumentsKw,
 			})
+			log.Printf("dispatched CALL %v to callee as INVOCATION %v", msg.Request, invocationID)
 		}
 	}
 }
 
 func (d *defaultDealer) Yield(callee Sender, msg *Yield) {
 	if callID, ok := d.invocations[msg.Request]; !ok {
-		callee.Send(&Error{
-			Type:    msg.MessageType(),
-			Request: msg.Request,
-			// TODO: what should this error be?
-			Error: URI("wamp.error.no_such_invocation"),
-		})
+		// WAMP spec doesn't allow sending an error in response to a YIELD message
+		log.Println("received YIELD message with invalid invocation request ID:", msg.Request)
 	} else {
+		delete(d.invocations, msg.Request)
 		if caller, ok := d.calls[callID]; !ok {
 			// found the invocation id, but doesn't match any call id
-			callee.Send(&Error{
-				Type:    msg.MessageType(),
-				Request: msg.Request,
-				// TODO: what should this error be?
-				Error: URI("wamp.error.no_such_call"),
-			})
+			// WAMP spec doesn't allow sending an error in response to a YIELD message
+			log.Printf("received YIELD message, but unable to match it (%v) to a CALL ID", msg.Request)
 		} else {
 			delete(d.calls, callID)
 			// return the result to the caller
@@ -132,6 +133,7 @@ func (d *defaultDealer) Yield(callee Sender, msg *Yield) {
 				Arguments:   msg.Arguments,
 				ArgumentsKw: msg.ArgumentsKw,
 			})
+			log.Printf("returned YIELD %v to caller as RESULT %v", msg.Request, callID)
 		}
 	}
 }
