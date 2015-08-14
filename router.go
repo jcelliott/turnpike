@@ -119,21 +119,21 @@ func (r *defaultRouter) handleSession(sess Session, realmURI URI) {
 
 		// Broker messages
 		case *Publish:
-			realm.Broker.Publish(sess.Peer, msg)
+			realm.Broker.Publish(sess, msg)
 		case *Subscribe:
-			realm.Broker.Subscribe(sess.Peer, msg)
+			realm.Broker.Subscribe(sess, msg)
 		case *Unsubscribe:
-			realm.Broker.Unsubscribe(sess.Peer, msg)
+			realm.Broker.Unsubscribe(sess, msg)
 
 		// Dealer messages
 		case *Register:
-			realm.Dealer.Register(sess.Peer, msg)
+			realm.Dealer.Register(sess, msg)
 		case *Unregister:
-			realm.Dealer.Unregister(sess.Peer, msg)
+			realm.Dealer.Unregister(sess, msg)
 		case *Call:
-			realm.Dealer.Call(sess.Peer, msg)
+			realm.Dealer.Call(sess, msg)
 		case *Yield:
-			realm.Dealer.Yield(sess.Peer, msg)
+			realm.Dealer.Yield(sess, msg)
 
 		default:
 			log.Println("Unhandled message:", msg.MessageType())

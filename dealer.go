@@ -3,13 +3,13 @@ package turnpike
 // A Dealer routes and manages RPC calls to callees.
 type Dealer interface {
 	// Register a procedure on an endpoint
-	Register(Sender, *Register)
+	Register(Session, *Register)
 	// Unregister a procedure on an endpoint
-	Unregister(Sender, *Unregister)
+	Unregister(Session, *Unregister)
 	// Call a procedure on an endpoint
-	Call(Sender, *Call)
+	Call(Session, *Call)
 	// Return the result of a procedure call
-	Yield(Sender, *Yield)
+	Yield(Session, *Yield)
 }
 
 type RemoteProcedure struct {
@@ -39,7 +39,7 @@ func NewDefaultDealer() Dealer {
 	}
 }
 
-func (d *defaultDealer) Register(callee Sender, msg *Register) {
+func (d *defaultDealer) Register(callee Session, msg *Register) {
 	if _, ok := d.registrations[msg.Procedure]; ok {
 		callee.Send(&Error{
 			Type:    msg.MessageType(),
@@ -57,7 +57,7 @@ func (d *defaultDealer) Register(callee Sender, msg *Register) {
 	})
 }
 
-func (d *defaultDealer) Unregister(callee Sender, msg *Unregister) {
+func (d *defaultDealer) Unregister(callee Session, msg *Unregister) {
 	if procedure, ok := d.procedures[msg.Registration]; !ok {
 		// the registration doesn't exist
 		callee.Send(&Error{
@@ -74,7 +74,7 @@ func (d *defaultDealer) Unregister(callee Sender, msg *Unregister) {
 	}
 }
 
-func (d *defaultDealer) Call(caller Sender, msg *Call) {
+func (d *defaultDealer) Call(caller Session, msg *Call) {
 	if reg, ok := d.registrations[msg.Procedure]; !ok {
 		caller.Send(&Error{
 			Type:    msg.MessageType(),
@@ -98,7 +98,7 @@ func (d *defaultDealer) Call(caller Sender, msg *Call) {
 			rproc.Endpoint.Send(&Invocation{
 				Request:      invocationID,
 				Registration: reg,
-				Details: map[string]interface{}{},
+				Details:      map[string]interface{}{},
 				Arguments:    msg.Arguments,
 				ArgumentsKw:  msg.ArgumentsKw,
 			})
@@ -106,7 +106,7 @@ func (d *defaultDealer) Call(caller Sender, msg *Call) {
 	}
 }
 
-func (d *defaultDealer) Yield(callee Sender, msg *Yield) {
+func (d *defaultDealer) Yield(callee Session, msg *Yield) {
 	if callID, ok := d.invocations[msg.Request]; !ok {
 		callee.Send(&Error{
 			Type:    msg.MessageType(),
