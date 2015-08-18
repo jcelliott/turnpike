@@ -144,12 +144,23 @@ func (s *WebsocketServer) handleWebsocket(conn *websocket.Conn) {
 		for {
 			// TODO: use conn.NextMessage() and stream
 			// TODO: do something different based on binary/text frames
-			if _, b, err := conn.ReadMessage(); err != nil {
+			if msgType, b, err := conn.ReadMessage(); err != nil {
+				if peer.closed {
+					log.Println("peer connection closed")
+				} else {
+					log.Println("error reading from peer:", err)
+					conn.Close()
+				}
+				close(peer.messages)
+				break
+			} else if msgType == websocket.CloseMessage {
 				conn.Close()
+				close(peer.messages)
 				break
 			} else {
 				msg, err := serializer.Deserialize(b)
 				if err != nil {
+					log.Println("error deserializing peer message:", err)
 					// TODO: handle error
 				} else {
 					peer.messages <- msg

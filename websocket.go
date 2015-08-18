@@ -2,6 +2,8 @@ package turnpike
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/gorilla/websocket"
 )
 
@@ -10,6 +12,7 @@ type websocketPeer struct {
 	serializer  Serializer
 	messages    chan Message
 	payloadType int
+	closed      bool
 }
 
 // NewWebsocketPeer connects to the websocket server at the specified url.
@@ -62,6 +65,7 @@ func newWebsocketPeer(url, protocol, origin string, serializer Serializer, paylo
 	return ep, nil
 }
 
+// TODO: make this just add the message to a channel so we don't block
 func (ep *websocketPeer) Send(msg Message) error {
 	b, err := ep.serializer.Serialize(msg)
 	if err != nil {
@@ -73,5 +77,11 @@ func (ep *websocketPeer) Receive() <-chan Message {
 	return ep.messages
 }
 func (ep *websocketPeer) Close() error {
+	closeMsg := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "goodbye")
+	err := ep.conn.WriteControl(websocket.CloseMessage, closeMsg, time.Now().Add(5*time.Second))
+	if err != nil {
+		log.Println("error sending close message:", err)
+	}
+	ep.closed = true
 	return ep.conn.Close()
 }
