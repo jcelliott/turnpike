@@ -110,7 +110,7 @@ func (r *defaultRouter) handleSession(sess Session, realmURI URI) {
 			return
 		}
 
-		log.Println(sess.Id, msg.MessageType(), msg)
+		log.Printf("[%v] %s: %+v", sess.Id, msg.MessageType(), msg)
 
 		switch msg := msg.(type) {
 		case *Goodbye:
@@ -134,6 +134,11 @@ func (r *defaultRouter) handleSession(sess Session, realmURI URI) {
 			realm.Dealer.Call(sess.Peer, msg)
 		case *Yield:
 			realm.Dealer.Yield(sess.Peer, msg)
+
+		// Error messages
+		case *Error:
+			// TODO:
+			log.Println("TODO: handle error messages")
 
 		default:
 			log.Println("Unhandled message:", msg.MessageType())
@@ -214,6 +219,7 @@ func (r *defaultRouter) Accept(client Peer) error {
 func (r *defaultRouter) GetLocalPeer(realm URI) (Peer, error) {
 	peerA, peerB := localPipe()
 	sess := Session{Peer: peerA, Id: NewID(), kill: make(chan URI, 1)}
+	log.Println("Established internal session:", sess.Id)
 	r.clients[realm] = append(r.clients[realm], sess)
 	go r.handleSession(sess, realm)
 	return peerB, nil

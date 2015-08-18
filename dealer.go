@@ -53,6 +53,7 @@ func (d *defaultDealer) Register(callee Sender, msg *Register) {
 	reg := NewID()
 	d.procedures[reg] = RemoteProcedure{callee, msg.Procedure}
 	d.registrations[msg.Procedure] = reg
+	log.Printf("registered procedure %v [%v]", reg, msg.Procedure)
 	callee.Send(&Registered{
 		Request:      msg.Request,
 		Registration: reg,
@@ -72,6 +73,7 @@ func (d *defaultDealer) Unregister(callee Sender, msg *Unregister) {
 	} else {
 		delete(d.registrations, procedure.Procedure)
 		delete(d.procedures, msg.Registration)
+		log.Printf("unregistered procedure %v [%v]", procedure.Procedure, msg.Registration)
 		callee.Send(&Unregistered{
 			Request: msg.Request,
 		})
@@ -109,7 +111,9 @@ func (d *defaultDealer) Call(caller Sender, msg *Call) {
 				Arguments:    msg.Arguments,
 				ArgumentsKw:  msg.ArgumentsKw,
 			})
-			log.Printf("dispatched CALL %v to callee as INVOCATION %v", msg.Request, invocationID)
+			log.Printf("dispatched CALL %v [%v] to callee as INVOCATION %v",
+				msg.Request, msg.Procedure, invocationID,
+			)
 		}
 	}
 }
