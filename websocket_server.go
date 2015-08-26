@@ -32,7 +32,7 @@ type protocol struct {
 // WebsocketServer handles websocket connections.
 type WebsocketServer struct {
 	Router
-	upgrader *websocket.Upgrader
+	Upgrader *websocket.Upgrader
 
 	protocols map[string]protocol
 
@@ -67,7 +67,7 @@ func newWebsocketServer(r Router) *WebsocketServer {
 		Router:    r,
 		protocols: make(map[string]protocol),
 	}
-	s.upgrader = &websocket.Upgrader{}
+	s.Upgrader = &websocket.Upgrader{}
 	s.RegisterProtocol(jsonWebsocketProtocol, websocket.TextMessage, new(JSONSerializer))
 	s.RegisterProtocol(msgpackWebsocketProtocol, websocket.BinaryMessage, new(MessagePackSerializer))
 	return s
@@ -83,7 +83,7 @@ func (s *WebsocketServer) RegisterProtocol(proto string, payloadType int, serial
 		return protocolExists(proto)
 	}
 	s.protocols[proto] = protocol{payloadType, serializer}
-	s.upgrader.Subprotocols = append(s.upgrader.Subprotocols, proto)
+	s.Upgrader.Subprotocols = append(s.Upgrader.Subprotocols, proto)
 	return nil
 }
 
@@ -102,7 +102,7 @@ func (s *WebsocketServer) GetLocalClient(realm string) (*Client, error) {
 func (s *WebsocketServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Println("WebsocketServer.ServeHTTP", r.Method, r.RequestURI)
 	// TODO: subprotocol?
-	conn, err := s.upgrader.Upgrade(w, r, nil)
+	conn, err := s.Upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("Error upgrading to websocket connection:", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
