@@ -280,7 +280,7 @@ func (c *Client) notifyListener(msg Message, requestId ID) {
 func (c *Client) handleInvocation(msg *Invocation) {
 	if proc, ok := c.procedures[msg.Registration]; ok {
 		go func() {
-			result := proc.handler(msg.Arguments, msg.ArgumentsKw)
+			result := proc.handler(msg.Arguments, msg.ArgumentsKw, msg.Details)
 
 			var tosend Message
 			tosend = &Yield{
@@ -408,15 +408,17 @@ func (c *Client) Unsubscribe(topic string) error {
 }
 
 // MethodHandler is an RPC endpoint.
-type MethodHandler func(args []interface{}, kwargs map[string]interface{}) (result *CallResult)
+type MethodHandler func(
+	args []interface{}, kwargs map[string]interface{}, details map[string]interface{},
+) (result *CallResult)
 
-// Register registers a procedure with the router.
-func (c *Client) Register(procedure string, fn MethodHandler) error {
+// Register registers a MethodHandler procedure with the router.
+func (c *Client) Register(procedure string, fn MethodHandler, options map[string]interface{}) error {
 	id := NewID()
 	c.registerListener(id)
 	register := &Register{
 		Request:   id,
-		Options:   make(map[string]interface{}),
+		Options:   options,
 		Procedure: URI(procedure),
 	}
 	if err := c.Send(register); err != nil {
@@ -436,6 +438,18 @@ func (c *Client) Register(procedure string, fn MethodHandler) error {
 		c.procedures[registered.Registration] = &procedureDesc{procedure, fn}
 	}
 	return nil
+}
+
+// BasicMethodHandler is an RPC endpoint that doesn't expect the `Details` map
+type BasicMethodHandler func(args []interface{}, kwargs map[string]interface{}) (result *CallResult)
+
+// BasicRegister registers a BasicMethodHandler procedure with the router
+func (c *Client) BasicRegister(procedure string, fn BasicMethodHandler) error {
+	wrap := func(args []interface{}, kwargs map[string]interface{},
+		details map[string]interface{}) (result *CallResult) {
+		return fn(args, kwargs)
+	}
+	return c.Register(procedure, wrap, make(map[string]interface{}))
 }
 
 // Unregister removes a procedure with the router
