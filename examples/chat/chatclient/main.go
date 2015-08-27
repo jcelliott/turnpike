@@ -40,7 +40,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	_, err = c.JoinRealm("turnpike.examples", turnpike.ALLROLES, nil)
+	_, err = c.JoinRealm("turnpike.examples", nil)
 	if err != nil {
 		log.Fatal(err)
 	}

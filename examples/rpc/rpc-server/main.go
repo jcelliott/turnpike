@@ -18,7 +18,7 @@ func main() {
 		Addr:    ":8000",
 	}
 	client, _ = s.GetLocalClient("turnpike.examples")
-	if err := client.Register("alarm.set", alarmSet); err != nil {
+	if err := client.BasicRegister("alarm.set", alarmSet); err != nil {
 		panic(err)
 	}
 	log.Println("turnpike server starting on port 8000")

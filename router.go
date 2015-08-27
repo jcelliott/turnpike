@@ -164,6 +164,7 @@ func (r *defaultRouter) Accept(client Peer) error {
 			client.Close()
 			return fmt.Errorf("No messages received")
 		}
+		log.Printf("%s: %+v", msg.MessageType(), msg)
 		if hello, ok := msg.(*Hello); !ok {
 			if err := client.Send(&Abort{Reason: WAMP_ERROR_NOT_AUTHORIZED}); err != nil {
 				return err
@@ -225,6 +226,12 @@ func (r *defaultRouter) GetLocalPeer(realm URI) (Peer, error) {
 	return peerB, nil
 }
 
+func (r *defaultRouter) getTestPeer() Peer {
+	peerA, peerB := localPipe()
+	go r.Accept(peerA)
+	return peerB
+}
+
 func (r *defaultRouter) authenticate(client Peer, realm Realm, details map[string]interface{}) (*Welcome, error) {
 	msg, err := realm.Authenticate(details)
 	if err != nil {
@@ -248,6 +255,7 @@ func (r *defaultRouter) authenticate(client Peer, realm Realm, details map[strin
 			if !open {
 				return nil, fmt.Errorf("No messages received")
 			}
+			log.Printf("%s: %+v", msg.MessageType(), msg)
 			if authenticate, ok := msg.(*Authenticate); !ok {
 				return nil, fmt.Errorf("unexpected %s message received", msg.MessageType())
 			} else {
