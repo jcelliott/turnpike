@@ -3,54 +3,67 @@
 
 	var conn,
 		session,
+		renderer,
 		stage,
-		layer,
 		colo,
 		channel = 'my.turnpike.chat';
 
 	function drawCircle(x, y, color) {
-		var circ = new Kinetic.Circle({
-			x: x,
-			y: y,
-			radius: 0,
-			fill: color,
-		});
+		var g = new PIXI.Graphics(),
+			fields = {
+				radius: 0,
+				opacity: 1,
+			};
 
-		layer.add(circ);
-		circ.tween = new Kinetic.Tween({
-			node: circ,
-			radius: 75,
-			opacity: 0,
-			easing: Kinetic.Easings.EaseIn,
-			duration: 1,
-			onFinish: function () {
-				circ.remove();
-			}
-		});
-		circ.tween.play();
+		console.log("X:", x, "Y:", y);
+		stage.addChild(g);
+
+		function handleChange() {
+			// console.log("Radius:", fields.radius, "Opacity:", fields.opacity);
+			g.clear();
+			g.beginFill(color, fields.opacity);
+			g.drawCircle(x, y, fields.radius);
+			g.endFill();
+		}
+
+		function remove() {
+			stage.removeChild(g);
+		}
+
+		createjs.Tween.get(fields).to({radius: 100, opacity: 0}, 1500).addEventListener('change', handleChange).call(remove);
 	}
 
 	function randColor() {
-		return 'rgb(' + Math.random() + ',' + Math.random() + ',' + Math.random() + ')';
+		return (Math.random()*255 << 16) | (Math.random()*255 << 8) | (Math.random()*255);
 	}
 
-	function initKinectic() {
+	function draw() {
+		renderer.render(stage);
+		window.requestAnimationFrame(draw);
+	}
+
+	function initDrawing() {
 		colo = randColor();
 
-		stage = new Kinetic.Stage({
-			container: 'container',
-			width: window.innerWidth,
-			height: window.innerHeight,
-		});
+		stage = new PIXI.Container();
+		stage.interactive = true;
+		stage.buttonMode = true;
+		renderer = new PIXI.autoDetectRenderer(window.innerWidth, window.innerHeight);
+		document.body.appendChild(renderer.view);
 
-		layer = new Kinetic.Layer();
-		stage.add(layer);
+		stage.hitArea = new PIXI.Rectangle(0, 0, window.innerWidth, window.innerHeight);
+
+		function eventHandler(e) {
+			var mousePos = e.data.global;
+			session.publish(channel, [mousePos.x, mousePos.y, colo]);
+			drawCircle(mousePos.x, mousePos.y, colo)
+		}
 
 		// add click and tap handlers
-		stage.on('contentClick', function () {
-			var mousePos = stage.getPointerPosition();
-			session.publish(channel, [mousePos.x, mousePos.y, colo]);
-		});
+		stage.on('mousedown', eventHandler);
+		stage.on('touchstart', eventHandler);
+
+		window.requestAnimationFrame(draw);
 	}
 
 	function initAutobahn() {
@@ -73,7 +86,7 @@
 
 	function init() {
 		initAutobahn();
-		initKinectic();
+		initDrawing();
 	}
 
 	window.addEventListener('load', init);
