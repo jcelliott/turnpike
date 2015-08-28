@@ -19,7 +19,7 @@
 		stage.addChild(g);
 
 		function handleChange() {
-			console.log("Radius:", fields.radius, "Opacity:", fields.opacity);
+			// console.log("Radius:", fields.radius, "Opacity:", fields.opacity);
 			g.clear();
 			g.beginFill(color, fields.opacity);
 			g.drawCircle(x, y, fields.radius);
@@ -30,8 +30,7 @@
 			stage.removeChild(g);
 		}
 
-		console.log("Drawing circle");
-		createjs.Tween.get(fields).to({radius: 75, opacity: 0}, 1000).addEventListener('change', handleChange).call(remove);
+		createjs.Tween.get(fields).to({radius: 100, opacity: 0}, 1500).addEventListener('change', handleChange).call(remove);
 	}
 
 	function randColor() {
@@ -46,16 +45,23 @@
 	function initDrawing() {
 		colo = randColor();
 
+		stage = new PIXI.Container();
+		stage.interactive = true;
+		stage.buttonMode = true;
 		renderer = new PIXI.autoDetectRenderer(window.innerWidth, window.innerHeight);
-
 		document.body.appendChild(renderer.view);
-		stage = new PIXI.Stage();
+
+		stage.hitArea = new PIXI.Rectangle(0, 0, window.innerWidth, window.innerHeight);
+
+		function eventHandler(e) {
+			var mousePos = e.data.global;
+			session.publish(channel, [mousePos.x, mousePos.y, colo]);
+			drawCircle(mousePos.x, mousePos.y, colo)
+		}
 
 		// add click and tap handlers
-		renderer.view.addEventListener('click', function (e) {
-			var mousePos = stage.getMousePosition();
-			session.publish(channel, [mousePos.x, mousePos.y, colo]);
-		});
+		stage.on('mousedown', eventHandler);
+		stage.on('touchstart', eventHandler);
 
 		window.requestAnimationFrame(draw);
 	}
