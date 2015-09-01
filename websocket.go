@@ -45,23 +45,8 @@ func newWebsocketPeer(url, protocol, origin string, serializer Serializer, paylo
 		serializer:  serializer,
 		payloadType: payloadType,
 	}
-	go func() {
-		for {
-			// TODO: use conn.NextMessage() and stream
-			// TODO: do something different based on binary/text frames
-			if _, b, err := conn.ReadMessage(); err != nil {
-				conn.Close()
-				break
-			} else {
-				msg, err := serializer.Deserialize(b)
-				if err != nil {
-					// TODO: handle error
-				} else {
-					ep.messages <- msg
-				}
-			}
-		}
-	}()
+	go ep.run()
+
 	return ep, nil
 }
 
@@ -84,4 +69,33 @@ func (ep *websocketPeer) Close() error {
 	}
 	ep.closed = true
 	return ep.conn.Close()
+}
+
+func (ep *websocketPeer) run() {
+	for {
+		// TODO: use conn.NextMessage() and stream
+		// TODO: do something different based on binary/text frames
+		if msgType, b, err := ep.conn.ReadMessage(); err != nil {
+			if ep.closed {
+				log.Println("peer connection closed")
+			} else {
+				log.Println("error reading from peer:", err)
+				ep.conn.Close()
+			}
+			close(ep.messages)
+			break
+		} else if msgType == websocket.CloseMessage {
+			ep.conn.Close()
+			close(ep.messages)
+			break
+		} else {
+			msg, err := ep.serializer.Deserialize(b)
+			if err != nil {
+				log.Println("error deserializing peer message:", err)
+				// TODO: handle error
+			} else {
+				ep.messages <- msg
+			}
+		}
+	}
 }
