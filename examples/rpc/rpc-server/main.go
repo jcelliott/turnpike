@@ -33,7 +33,7 @@ func alarmSet(args []interface{}, kwargs map[string]interface{}) (result *turnpi
 	}
 	go func() {
 		time.Sleep(time.Duration(duration) * time.Second)
-		client.Publish("alarm.ring", nil, nil)
+		client.Publish("alarm.ring", nil, nil, nil)
 	}()
 	return &turnpike.CallResult{Args: []interface{}{"hello"}}
 }
