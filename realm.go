@@ -12,6 +12,8 @@ type Realm struct {
 	_ string
 	Broker
 	Dealer
+	Authorizer
+	Interceptor
 	CRAuthenticators map[string]CRAuthenticator
 	Authenticators   map[string]Authenticator
 	// DefaultAuth      func(details map[string]interface{}) (map[string]interface{}, error)

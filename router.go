@@ -83,11 +83,17 @@ func (r *defaultRouter) RegisterRealm(uri URI, realm Realm) error {
 	if realm.Dealer == nil {
 		realm.Dealer = NewDefaultDealer()
 	}
+	if realm.Authorizer == nil {
+		realm.Authorizer = NewDefaultAuthorizer()
+	}
+	if realm.Interceptor == nil {
+		realm.Interceptor = NewDefaultInterceptor()
+	}
 	r.realms[uri] = realm
 	return nil
 }
 
-func (r *defaultRouter) handleSession(sess Session, realmURI URI) {
+func (r *defaultRouter) handleSession(sess Session, realmURI URI, details map[string]interface{}) {
 	defer sess.Close()
 
 	c := sess.Receive()
@@ -111,6 +117,20 @@ func (r *defaultRouter) handleSession(sess Session, realmURI URI) {
 		}
 
 		log.Printf("[%v] %s: %+v", sess.Id, msg.MessageType(), msg)
+		if isAuthz, err := realm.Authorizer.IsAuthorized(msg, details); !isAuthz {
+			if err != nil {
+				log.Println(sess.Id, msg.MessageType(), err.Error())
+			} else {
+				log.Println(sess.Id, msg.MessageType(), WAMP_ERROR_AUTHORIZATION_FAILED)
+			}
+			sess.Send(&Error{
+				Type:  msg.MessageType(),
+				Error: WAMP_ERROR_AUTHORIZATION_FAILED,
+			})
+			continue
+		}
+
+		realm.Interceptor.Modify(&msg, details)
 
 		switch msg := msg.(type) {
 		case *Goodbye:
@@ -207,7 +227,7 @@ func (r *defaultRouter) Accept(client Peer) error {
 			for _, callback := range r.sessionOpenCallbacks {
 				go callback(uint(sess.Id), string(hello.Realm))
 			}
-			go r.handleSession(sess, hello.Realm)
+			go r.handleSession(sess, hello.Realm, welcome.Details)
 		}
 	}
 
@@ -222,7 +242,7 @@ func (r *defaultRouter) GetLocalPeer(realm URI) (Peer, error) {
 	sess := Session{Peer: peerA, Id: NewID(), kill: make(chan URI, 1)}
 	log.Println("Established internal session:", sess.Id)
 	r.clients[realm] = append(r.clients[realm], sess)
-	go r.handleSession(sess, realm)
+	go r.handleSession(sess, realm, make(map[string]interface{}))
 	return peerB, nil
 }
 
