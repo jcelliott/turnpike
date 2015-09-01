@@ -2,7 +2,11 @@ package turnpike
 
 import (
 	"fmt"
+	//"github.com/mitchellh/mapstructure"
+	"reflect"
 	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
 var (
@@ -34,7 +38,13 @@ type Client struct {
 	listeners    map[ID]chan Message
 	events       map[ID]*eventDesc
 	procedures   map[ID]*procedureDesc
+	serviceMap   map[string]*service
 	requestCount uint
+}
+
+type service struct {
+	name    string
+	methods map[string]reflect.Method
 }
 
 type procedureDesc struct {
@@ -502,4 +512,164 @@ func (c *Client) Call(procedure string, args []interface{}, kwargs map[string]in
 	} else {
 		return result, nil
 	}
+}
+
+// RegisterService registers in the dealer the set of methods of the
+// receiver value that satisfy the following conditions:
+//	- exported method of exported type
+//	- two arguments, both of exported type
+//	- at least one return value, of type error
+// It returns an error if the receiver is not an exported type or has
+// no suitable methods.
+// The client accesses each method using a string of the form "type.method",
+// where type is the receiver's concrete type.
+func (c *Client) RegisterService(rcvr interface{}) error {
+	return c.registerService(rcvr, "", false)
+}
+
+// RegisterServiceName is like RegisterService but uses the provided name for the type
+// instead of the receiver's concrete type.
+func (c *Client) RegisterServiceName(name string, rcvr interface{}) error {
+	return c.registerService(rcvr, name, true)
+}
+
+var typeOfError = reflect.TypeOf((*error)(nil)).Elem()
+
+// Is this an exported - upper case - name?
+func isExported(name string) bool {
+	rune, _ := utf8.DecodeRuneInString(name)
+	return unicode.IsUpper(rune)
+}
+
+func (c *Client) registerService(rcvr interface{}, name string, useName bool) error {
+	if c.serviceMap == nil {
+		c.serviceMap = make(map[string]*service)
+	}
+	typ := reflect.TypeOf(rcvr)
+	val := reflect.ValueOf(rcvr)
+	sname := reflect.Indirect(val).Type().Name()
+	if name != "" {
+		sname = name
+	}
+	if !isExported(sname) && !useName {
+		return fmt.Errorf("type %s is not exported", sname)
+	}
+	if _, present := c.serviceMap[sname]; present {
+		return fmt.Errorf("service %s is already defined", sname)
+	}
+
+	methods := make(map[string]reflect.Method)
+	for m := 0; m < typ.NumMethod(); m++ {
+		method := typ.Method(m)
+		mtype := method.Type
+		mname := method.Name
+		// Method must be exported.
+		if method.PkgPath != "" {
+			continue
+		}
+
+		// Method needs at least one out
+		numOut := mtype.NumOut()
+		if numOut < 1 {
+			continue
+		}
+
+		// Method last out must be error
+		if errType := mtype.Out(numOut - 1); errType != typeOfError {
+			continue
+		}
+		methods[mname] = method
+	}
+
+	c.serviceMap[sname] = &service{
+		methods: methods,
+		name:    sname,
+	}
+
+	// Register methods as procedure with Dealer
+	for mname, value := range methods {
+		var method = value
+		namespace := sname + "." + mname
+		f := func(args []interface{}, kwargs map[string]interface{}, details map[string]interface{}) (callResult *CallResult) {
+			if method.Type.NumIn()-1 != len(args) {
+				err := fmt.Errorf("procedure %s has %d inputs, was called with %d arguments", namespace, method.Type.NumIn()-1, len(args))
+				return &CallResult{
+					Args: []interface{}{err.Error()},
+					Err:  WAMP_ERROR_INVALID_ARGUMENT,
+				}
+			}
+			values := make([]reflect.Value, len(args))
+			for i, arg := range args {
+				in := method.Type.In(i + 1)
+				if arg == nil {
+					values[i] = reflect.Zero(in)
+					continue
+				}
+				values[i] = reflect.ValueOf(arg)
+			}
+			values = append([]reflect.Value{val}, values...)
+			function := method.Func
+			returnValues := function.Call(values)
+
+			result := make([]interface{}, len(returnValues))
+			for i := range returnValues {
+				result[i] = returnValues[i].Interface()
+			}
+			return &CallResult{
+				Args: result,
+			}
+		}
+		c.Register(namespace, f, map[string]interface{}{})
+	}
+
+	return nil
+}
+
+func (c *Client) UnregisterService(name string) error {
+	service, present := c.serviceMap[name]
+	if !present {
+		return fmt.Errorf("service %s is not defined", name)
+	}
+	var err error
+	for methodName := range service.methods {
+		err = c.Unregister(service.name + "." + methodName)
+		// TODO capture all possible errors, not only the last one
+	}
+	c.serviceMap[name] = nil
+	return err
+}
+
+func (c *Client) CallService(namespace string, args []interface{}, reply ...interface{}) error {
+	for i := 0; i < len(reply); i++ {
+		kind := reflect.ValueOf(reply[i]).Kind()
+		if kind != reflect.Ptr {
+			return fmt.Errorf("reply %d is not a pointer", i)
+		}
+	}
+
+	res, err := c.Call(namespace, args, nil)
+	if err != nil {
+		return err
+	}
+	returnValues := res.Arguments
+	if len(returnValues)-1 != len(reply) { // -1 because we expect an error value in returnValues
+		return fmt.Errorf("length of return values doesn't match length of reply values")
+	}
+
+	for i := 0; i < len(reply); i++ {
+		vReturnValue := reflect.ValueOf(returnValues[i])
+		vReply := reflect.ValueOf(reply[i])
+		vReply.Elem().Set(vReturnValue)
+	}
+	switch e := returnValues[len(returnValues)-1].(type) {
+	case string:
+		return fmt.Errorf("%s", e)
+	case nil:
+		return nil
+	case error:
+		return e
+	default:
+		return fmt.Errorf("expected the last return value to be of type string, nil or error got %T", e)
+	}
+	return nil
 }
