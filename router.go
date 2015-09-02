@@ -169,8 +169,12 @@ func (r *defaultRouter) handleSession(sess Session, realmURI URI, details map[st
 
 		// Error messages
 		case *Error:
-			// TODO:
-			log.Println("TODO: handle error messages")
+			if msg.Type == INVOCATION {
+				// the only type of ERROR message the router should receive
+				realm.Dealer.Error(sess.Peer, msg)
+			} else {
+				log.Println("invalid ERROR message received: %v", msg)
+			}
 
 		default:
 			log.Println("Unhandled message:", msg.MessageType())

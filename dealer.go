@@ -10,6 +10,8 @@ type Dealer interface {
 	Call(Sender, *Call)
 	// Return the result of a procedure call
 	Yield(Sender, *Yield)
+	// Handle an ERROR message from an invocation
+	Error(Sender, *Error)
 }
 
 type RemoteProcedure struct {
@@ -138,6 +140,28 @@ func (d *defaultDealer) Yield(callee Sender, msg *Yield) {
 				ArgumentsKw: msg.ArgumentsKw,
 			})
 			log.Printf("returned YIELD %v to caller as RESULT %v", msg.Request, callID)
+		}
+	}
+}
+
+func (d *defaultDealer) Error(peer Sender, msg *Error) {
+	if callID, ok := d.invocations[msg.Request]; !ok {
+		log.Println("received ERROR (INVOCATION) message with invalid invocation request ID:", msg.Request)
+	} else {
+		delete(d.invocations, msg.Request)
+		if caller, ok := d.calls[callID]; !ok {
+			log.Printf("received ERROR (INVOCATION) message, but unable to match it (%v) to a CALL ID", msg.Request)
+		} else {
+			delete(d.calls, callID)
+			// return an error to the caller
+			caller.Send(&Error{
+				Type:        CALL,
+				Request:     callID,
+				Details:     make(map[string]interface{}),
+				Arguments:   msg.Arguments,
+				ArgumentsKw: msg.ArgumentsKw,
+			})
+			log.Printf("returned ERROR %v to caller as ERROR %v", msg.Request, callID)
 		}
 	}
 }
