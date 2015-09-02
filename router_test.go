@@ -34,7 +34,7 @@ func basicConnect(t *testing.T, client *basicPeer, server Peer) Router {
 	}
 
 	if len(client.incoming) != 1 {
-		t.Fatal("Expected 1 message in the handshake, received %d", len(client.incoming))
+		t.Fatalf("Expected 1 message in the handshake, received %d", len(client.incoming))
 	}
 
 	if msg := <-client.incoming; msg.MessageType() != WELCOME {

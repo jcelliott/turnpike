@@ -30,9 +30,9 @@ func TestJSONDeserialize(t *testing.T) {
 	s := new(JSONSerializer)
 	for _, tst := range tests {
 		if msg, err := s.Deserialize([]byte(tst.packet)); err != nil {
-			t.Error("Error parsing good packet: %s, %s", err, tst.packet)
+			t.Errorf("Error parsing good packet: %s, %s", err, tst.packet)
 		} else if msg.MessageType() != tst.exp.MessageType() {
-			t.Error("Incorrect message type: %d != %d", msg.MessageType(), tst.exp.MessageType())
+			t.Errorf("Incorrect message type: %d != %d", msg.MessageType(), tst.exp.MessageType())
 		} else if !reflect.DeepEqual(msg, tst.exp) {
 			t.Errorf("%+v != %+v", msg, tst.exp)
 		}
@@ -79,7 +79,7 @@ func TestBinaryData(t *testing.T) {
 	var b BinaryData
 	err = json.Unmarshal(arr, &b)
 	if err != nil {
-		t.Errorf("Error unmarshalling marshalled BinaryData:", err)
+		t.Errorf("Error unmarshalling marshalled BinaryData: %v", err)
 	} else if !bytes.Equal([]byte(b), from) {
 		t.Errorf("%s != %s", string(b), string(from))
 	}
