@@ -34,6 +34,7 @@ type Router interface {
 	RegisterRealm(URI, Realm) error
 	GetLocalPeer(URI) (Peer, error)
 	AddSessionOpenCallback(func(uint, string))
+	AddSessionCloseCallback(func(uint, string))
 }
 
 // DefaultRouter is a very basic WAMP router.
@@ -41,26 +42,32 @@ type defaultRouter struct {
 	Broker
 	Dealer
 
-	realms               map[URI]Realm
-	clients              map[URI][]Session
-	closing              bool
-	lastId               int
-	sessionOpenCallbacks []func(uint, string)
+	realms                map[URI]Realm
+	clients               map[URI][]Session
+	closing               bool
+	lastId                int
+	sessionOpenCallbacks  []func(uint, string)
+	sessionCloseCallbacks []func(uint, string)
 }
 
 // NewDefaultRouter creates a very basic WAMP router.
 func NewDefaultRouter() Router {
 	return &defaultRouter{
-		Broker:               NewDefaultBroker(),
-		Dealer:               NewDefaultDealer(),
-		realms:               make(map[URI]Realm),
-		clients:              make(map[URI][]Session),
-		sessionOpenCallbacks: []func(uint, string){},
+		Broker:                NewDefaultBroker(),
+		Dealer:                NewDefaultDealer(),
+		realms:                make(map[URI]Realm),
+		clients:               make(map[URI][]Session),
+		sessionOpenCallbacks:  []func(uint, string){},
+		sessionCloseCallbacks: []func(uint, string){},
 	}
 }
 
 func (r *defaultRouter) AddSessionOpenCallback(fn func(uint, string)) {
 	r.sessionOpenCallbacks = append(r.sessionOpenCallbacks, fn)
+}
+
+func (r *defaultRouter) AddSessionCloseCallback(fn func(uint, string)) {
+	r.sessionCloseCallbacks = append(r.sessionCloseCallbacks, fn)
 }
 
 func (r *defaultRouter) Close() error {
@@ -88,7 +95,12 @@ func (r *defaultRouter) RegisterRealm(uri URI, realm Realm) error {
 }
 
 func (r *defaultRouter) handleSession(sess Session, realmURI URI) {
-	defer sess.Close()
+	defer func() {
+		for _, callback := range r.sessionCloseCallbacks {
+			go callback(uint(sess.Id), string(realmURI))
+		}
+		sess.Close()
+	}()
 
 	c := sess.Receive()
 	// TODO: what happens if the realm is closed?
