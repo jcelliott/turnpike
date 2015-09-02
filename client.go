@@ -31,6 +31,8 @@ type Client struct {
 	ReceiveTimeout time.Duration
 	// Auth is a map of WAMP authmethods to functions that will handle each auth type
 	Auth         map[string]AuthFunc
+	// ReceiveDone is notified when the client's connection to the router is lost.
+	ReceiveDone chan bool
 	listeners    map[ID]chan Message
 	events       map[ID]*eventDesc
 	procedures   map[ID]*procedureDesc
@@ -239,6 +241,10 @@ func (c *Client) Receive() {
 		}
 	}
 	log.Println("client closed")
+
+	if c.ReceiveDone != nil {
+		c.ReceiveDone <- true
+	}
 }
 
 func (c *Client) notifyListener(msg Message, requestId ID) {
