@@ -9,8 +9,15 @@ import (
 
 var (
 	logFlags = glog.Ldate | glog.Ltime | glog.Lshortfile
-	log      *glog.Logger
+	log      Logger
 )
+
+// Logger is an interface compatible with log.Logger.
+type Logger interface {
+	Println(v ...interface{})
+	Fatal(v ...interface{})
+	Printf(format string, v ...interface{})
+}
 
 // setup logger for package, writes to /dev/null by default
 func init() {
@@ -26,6 +33,10 @@ func init() {
 // change log output to stderr
 func Debug() {
 	log = glog.New(os.Stderr, "", logFlags)
+}
+
+func SetLogger(l Logger) {
+	log = l
 }
 
 func logErr(v ...interface{}) error {
