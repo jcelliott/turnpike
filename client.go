@@ -30,9 +30,9 @@ type Client struct {
 	// ReceiveTimeout is the amount of time that the client will block waiting for a response from the router.
 	ReceiveTimeout time.Duration
 	// Auth is a map of WAMP authmethods to functions that will handle each auth type
-	Auth         map[string]AuthFunc
+	Auth map[string]AuthFunc
 	// ReceiveDone is notified when the client's connection to the router is lost.
-	ReceiveDone chan bool
+	ReceiveDone  chan bool
 	listeners    map[ID]chan Message
 	events       map[ID]*eventDesc
 	procedures   map[ID]*procedureDesc
