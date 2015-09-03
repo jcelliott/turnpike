@@ -129,7 +129,7 @@ func (r *defaultRouter) handleSession(sess Session, realmURI URI, details map[st
 		}
 
 		log.Printf("[%v] %s: %+v", sess.Id, msg.MessageType(), msg)
-		if isAuthz, err := realm.Authorizer.IsAuthorized(msg, details); !isAuthz {
+		if isAuthz, err := realm.Authorizer.Authorize(sess.Id, msg, details); !isAuthz {
 			if err != nil {
 				log.Println(sess.Id, msg.MessageType(), err.Error())
 			} else {
@@ -142,7 +142,7 @@ func (r *defaultRouter) handleSession(sess Session, realmURI URI, details map[st
 			continue
 		}
 
-		realm.Interceptor.Modify(&msg, details)
+		realm.Interceptor.Intercept(sess.Id, &msg, details)
 
 		switch msg := msg.(type) {
 		case *Goodbye:

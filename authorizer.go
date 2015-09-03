@@ -1,7 +1,7 @@
 package turnpike
 
 type Authorizer interface {
-	IsAuthorized(msg Message, details map[string]interface{}) (bool, error)
+	Authorize(id ID, msg Message, details map[string]interface{}) (bool, error)
 }
 
 // DefaultAuthorizer always returns authorized.
@@ -12,6 +12,6 @@ func NewDefaultAuthorizer() *defaultAuthorizer {
 	return &defaultAuthorizer{}
 }
 
-func (da *defaultAuthorizer) IsAuthorized(msg Message, details map[string]interface{}) (bool, error) {
+func (da *defaultAuthorizer) Authorize(id ID, msg Message, details map[string]interface{}) (bool, error) {
 	return true, nil
 }

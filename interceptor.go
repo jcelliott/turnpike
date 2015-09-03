@@ -1,7 +1,7 @@
 package turnpike
 
 type Interceptor interface {
-	Modify(msg *Message, details map[string]interface{})
+	Intercept(id ID, msg *Message, details map[string]interface{})
 }
 
 // DefaultInterceptor does nothing :)
@@ -12,5 +12,5 @@ func NewDefaultInterceptor() *defaultInterceptor {
 	return &defaultInterceptor{}
 }
 
-func (di *defaultInterceptor) Modify(msg *Message, details map[string]interface{}) {
+func (di *defaultInterceptor) Intercept(id ID, msg *Message, details map[string]interface{}) {
 }
