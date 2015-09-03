@@ -173,7 +173,7 @@ func (r *defaultRouter) handleSession(sess Session, realmURI URI, details map[st
 				// the only type of ERROR message the router should receive
 				realm.Dealer.Error(sess.Peer, msg)
 			} else {
-				log.Println("invalid ERROR message received: %v", msg)
+				log.Printf("invalid ERROR message received: %v", msg)
 			}
 
 		default:

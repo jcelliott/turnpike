@@ -74,15 +74,15 @@ func (br *defaultBroker) Unsubscribe(sub Sender, msg *Unsubscribe) {
 			Error:   WAMP_ERROR_NO_SUCH_SUBSCRIPTION,
 		}
 		sub.Send(err)
-		log.Println("Error unsubscribing: no such subscription %s", msg.Subscription)
+		log.Printf("Error unsubscribing: no such subscription %v", msg.Subscription)
 		return
 	}
 	delete(br.subscriptions, msg.Subscription)
 
 	if r, ok := br.routes[topic]; !ok {
-		log.Println("Error unsubscribing: unable to find routes for %s topic", topic)
+		log.Printf("Error unsubscribing: unable to find routes for %s topic", topic)
 	} else if _, ok := r[msg.Subscription]; !ok {
-		log.Println("Error unsubscribing: %s route does not exist for %s subscription", topic, msg.Subscription)
+		log.Printf("Error unsubscribing: %s route does not exist for %v subscription", topic, msg.Subscription)
 	} else {
 		delete(r, msg.Subscription)
 		if len(r) == 0 {
