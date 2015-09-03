@@ -15,7 +15,6 @@ var (
 // Logger is an interface compatible with log.Logger.
 type Logger interface {
 	Println(v ...interface{})
-	Fatal(v ...interface{})
 	Printf(format string, v ...interface{})
 }
 
