@@ -2,7 +2,7 @@ package turnpike
 
 import (
 	"fmt"
-	//"github.com/mitchellh/mapstructure"
+	"github.com/mitchellh/mapstructure"
 	"reflect"
 	"time"
 	"unicode"
@@ -591,21 +591,25 @@ func (c *Client) registerService(rcvr interface{}, name string, useName bool) er
 		var method = value
 		namespace := sname + "." + mname
 		f := func(args []interface{}, kwargs map[string]interface{}, details map[string]interface{}) (callResult *CallResult) {
-			if method.Type.NumIn()-1 != len(args) {
-				err := fmt.Errorf("procedure %s has %d inputs, was called with %d arguments", namespace, method.Type.NumIn()-1, len(args))
+			methodArgs := method.Type.NumIn() - 1
+			if methodArgs != len(args) {
+				err := fmt.Errorf("procedure %s has %d inputs, was called with %d arguments", namespace, methodArgs, len(args))
 				return &CallResult{
 					Args: []interface{}{err.Error()},
 					Err:  WAMP_ERROR_INVALID_ARGUMENT,
 				}
 			}
 			values := make([]reflect.Value, len(args))
+			var err error
 			for i, arg := range args {
 				in := method.Type.In(i + 1)
-				if arg == nil {
-					values[i] = reflect.Zero(in)
-					continue
+				values[i], err = decodeArgument(in, arg)
+				if err != nil {
+					return &CallResult{
+						Args: []interface{}{err.Error()},
+						Err:  WAMP_ERROR_INVALID_ARGUMENT,
+					}
 				}
-				values[i] = reflect.ValueOf(arg)
 			}
 			values = append([]reflect.Value{val}, values...)
 			function := method.Func
@@ -623,6 +627,44 @@ func (c *Client) registerService(rcvr interface{}, name string, useName bool) er
 	}
 
 	return nil
+}
+
+func decodeArgument(target reflect.Type, arg interface{}) (reflect.Value, error) {
+	if arg == nil {
+		return reflect.Zero(target), nil
+	}
+	switch target.Kind() {
+	case reflect.Ptr:
+		return decodeArgument(target.Elem(), arg)
+	case reflect.Struct:
+		val := reflect.New(target)
+		err := mapstructure.Decode(arg, val.Interface())
+		return val, err
+	case reflect.Slice:
+		varg := reflect.ValueOf(arg)
+		val := reflect.MakeSlice(target, varg.Len(), varg.Len())
+		for i := 0; i < varg.Len(); i++ {
+			v := varg.Index(i)
+			e := val.Index(i)
+			kind := target.Elem()
+			vargEle, err := decodeArgument(kind, v.Interface())
+			if err != nil {
+				return val, err
+			}
+			e.Set(vargEle)
+		}
+		return val, nil
+	// Special case for ints, numbers are decoded as float64
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		targ := reflect.TypeOf(arg)
+		if targ.Kind() == reflect.Float64 {
+			return reflect.ValueOf(arg).Convert(target), nil
+		} else {
+			return reflect.ValueOf(arg), nil
+		}
+	default:
+		return reflect.ValueOf(arg), nil
+	}
 }
 
 func (c *Client) UnregisterService(name string) error {
