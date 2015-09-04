@@ -72,6 +72,7 @@ func (r *defaultRouter) AddSessionCloseCallback(fn func(uint, string)) {
 func (r *defaultRouter) Close() error {
 	r.closeLock.Lock()
 	if r.closing {
+		r.closeLock.Unlock()
 		return fmt.Errorf("already closed")
 	}
 	r.closing = true
