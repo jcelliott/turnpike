@@ -683,9 +683,12 @@ func (c *Client) UnregisterService(name string) error {
 
 func (c *Client) CallService(namespace string, args []interface{}, reply ...interface{}) error {
 	for i := 0; i < len(reply); i++ {
+		if reply[i] == nil {
+			continue
+		}
 		kind := reflect.ValueOf(reply[i]).Kind()
 		if kind != reflect.Ptr {
-			return fmt.Errorf("reply %d is not a pointer", i)
+			return fmt.Errorf("reply[%d] type %s is not a pointer", i, kind)
 		}
 	}
 
@@ -694,11 +697,17 @@ func (c *Client) CallService(namespace string, args []interface{}, reply ...inte
 		return err
 	}
 	returnValues := res.Arguments
-	if len(returnValues)-1 != len(reply) { // -1 because we expect an error value in returnValues
-		return fmt.Errorf("length of return values doesn't match length of reply values")
+	if len(returnValues)-1 < len(reply) {
+		return fmt.Errorf("expected %d return values, got %d", len(returnValues)-1, len(reply))
+	}
+	if len(returnValues) == 0 {
+		return fmt.Errorf("expected at least one return value of type string, nil or error")
 	}
 
 	for i := 0; i < len(reply); i++ {
+		if reply[i] == nil {
+			continue
+		}
 		vReply := reflect.ValueOf(reply[i])
 		tReply := vReply.Type()
 		val, err := decodeArgument(tReply, returnValues[i])
