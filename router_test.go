@@ -70,8 +70,8 @@ func TestInvalidRealm(t *testing.T) {
 	client := &basicPeer{c}
 	client.Send(&Hello{Realm: "does.not.exist"})
 	err := r.Accept(server)
-	if err != nil {
-		t.Fatal(err)
+	if err == nil {
+		t.Error(err)
 	}
 
 	if len(client.incoming) != 1 {

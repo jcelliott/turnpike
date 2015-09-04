@@ -11,7 +11,7 @@ func TestNoAuthentication(t *testing.T) {
 	Convey("Given a Realm with no authentication", t, func() {
 		realm := Realm{}
 		Convey("When a client is authenticated", func() {
-			msg, err := realm.Authenticate(map[string]interface{}{})
+			msg, err := realm.authenticate(map[string]interface{}{})
 			Convey("Authenticate should return a Welcome message", func() {
 				So(err, ShouldEqual, nil)
 				So(msg.MessageType(), ShouldEqual, WELCOME)
@@ -40,7 +40,7 @@ func TestBasicAuthenticator(t *testing.T) {
 			details := map[string]interface{}{
 				"password": "password",
 			}
-			_, err := realm.Authenticate(details)
+			_, err := realm.authenticate(details)
 			Convey("Authenticate should return an error", func() {
 				So(err, ShouldNotEqual, nil)
 			})
@@ -50,7 +50,7 @@ func TestBasicAuthenticator(t *testing.T) {
 				"password":    "password",
 				"authmethods": []interface{}{"test"},
 			}
-			_, err := realm.Authenticate(details)
+			_, err := realm.authenticate(details)
 			Convey("Authenticate should return an error", func() {
 				So(err, ShouldNotEqual, nil)
 			})
@@ -60,7 +60,7 @@ func TestBasicAuthenticator(t *testing.T) {
 				"password":    "super-secret",
 				"authmethods": []interface{}{"test"},
 			}
-			msg, err := realm.Authenticate(details)
+			msg, err := realm.authenticate(details)
 			Convey("Authenticate should return a Welcome message", func() {
 				So(err, ShouldEqual, nil)
 				So(msg.MessageType(), ShouldEqual, WELCOME)
@@ -104,7 +104,7 @@ func TestCRAuthenticator(t *testing.T) {
 			details := map[string]interface{}{
 				"authmethods": []interface{}{"test"},
 			}
-			_, err := realm.Authenticate(details)
+			_, err := realm.authenticate(details)
 			Convey("Authenticate should return an error", func() {
 				So(err, ShouldNotEqual, nil)
 			})
@@ -114,21 +114,21 @@ func TestCRAuthenticator(t *testing.T) {
 				"username":    "tester1",
 				"authmethods": []interface{}{"test"},
 			}
-			msg, err := realm.Authenticate(details)
+			msg, err := realm.authenticate(details)
 			Convey("Authenticate should return a Challenge message", func() {
 				So(err, ShouldEqual, nil)
 				So(msg.MessageType(), ShouldEqual, CHALLENGE)
 			})
 			challenge := msg.(*Challenge)
 			Convey("When a client provides an invalid signature for the challenge", func() {
-				_, err := realm.CheckResponse(challenge, &Authenticate{Signature: "bogus"})
+				_, err := realm.checkResponse(challenge, &Authenticate{Signature: "bogus"})
 				Convey("CheckResponse should return an error", func() {
 					So(err, ShouldNotEqual, nil)
 				})
 			})
 			Convey("When a client provides a valid signature for the challenge", func() {
 				auth := &Authenticate{Signature: testCRSign(challenge.Extra)}
-				msg, err := realm.CheckResponse(challenge, auth)
+				msg, err := realm.checkResponse(challenge, auth)
 				Convey("CheckResponse should return a Welcome message", func() {
 					So(err, ShouldEqual, nil)
 					So(msg.MessageType(), ShouldEqual, WELCOME)

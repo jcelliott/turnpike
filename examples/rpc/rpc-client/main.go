@@ -24,6 +24,7 @@ func main() {
 	quit := make(chan bool)
 	c.Subscribe("alarm.ring", func([]interface{}, map[string]interface{}) {
 		fmt.Println("The alarm rang!")
+		c.Close()
 		quit <- true
 	})
 	fmt.Print("Enter the timer duration: ")

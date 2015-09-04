@@ -76,7 +76,7 @@ func (c *Client) JoinRealm(realm string, details map[string]interface{}) (map[st
 	if details == nil {
 		details = map[string]interface{}{}
 	}
-	details["roles"] = roles()
+	details["roles"] = clientRoles()
 	if c.Auth != nil && len(c.Auth) > 0 {
 		return c.joinRealmCRA(realm, details)
 	}
@@ -144,7 +144,7 @@ func (c *Client) joinRealmCRA(realm string, details map[string]interface{}) (map
 	}
 }
 
-func roles() map[string]map[string]interface{} {
+func clientRoles() map[string]map[string]interface{} {
 	return map[string]map[string]interface{}{
 		"publisher":  make(map[string]interface{}),
 		"subscriber": make(map[string]interface{}),

@@ -88,8 +88,8 @@ func (s *WebsocketServer) RegisterProtocol(proto string, payloadType int, serial
 }
 
 // GetLocalClient returns a client connected to the specified realm
-func (s *WebsocketServer) GetLocalClient(realm string) (*Client, error) {
-	if peer, err := s.Router.GetLocalPeer(URI(realm)); err != nil {
+func (s *WebsocketServer) GetLocalClient(realm string, details map[string]interface{}) (*Client, error) {
+	if peer, err := s.Router.GetLocalPeer(URI(realm), details); err != nil {
 		return nil, err
 	} else {
 		c := NewClient(peer)
