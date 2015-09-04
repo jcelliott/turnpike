@@ -44,7 +44,6 @@ type Router interface {
 // DefaultRouter is the default WAMP router implementation.
 type defaultRouter struct {
 	realms                map[URI]Realm
-	clients               map[URI][]Session
 	closing               bool
 	closeLock             sync.Mutex
 	sessionOpenCallbacks  []func(uint, string)
@@ -55,7 +54,6 @@ type defaultRouter struct {
 func NewDefaultRouter() Router {
 	return &defaultRouter{
 		realms:                make(map[URI]Realm),
-		clients:               make(map[URI][]Session),
 		sessionOpenCallbacks:  []func(uint, string){},
 		sessionCloseCallbacks: []func(uint, string){},
 	}
