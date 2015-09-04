@@ -48,7 +48,7 @@ func (d *defaultDealer) Register(callee Sender, msg *Register) {
 			Type:    msg.MessageType(),
 			Request: msg.Request,
 			Details: make(map[string]interface{}),
-			Error:   WAMP_ERROR_PROCEDURE_ALREADY_EXISTS,
+			Error:   ErrProcedureAlreadyExists,
 		})
 		return
 	}
@@ -70,7 +70,7 @@ func (d *defaultDealer) Unregister(callee Sender, msg *Unregister) {
 			Type:    msg.MessageType(),
 			Request: msg.Request,
 			Details: make(map[string]interface{}),
-			Error:   WAMP_ERROR_NO_SUCH_REGISTRATION,
+			Error:   ErrNoSuchRegistration,
 		})
 	} else {
 		delete(d.registrations, procedure.Procedure)
@@ -88,7 +88,7 @@ func (d *defaultDealer) Call(caller Sender, msg *Call) {
 			Type:    msg.MessageType(),
 			Request: msg.Request,
 			Details: make(map[string]interface{}),
-			Error:   WAMP_ERROR_NO_SUCH_PROCEDURE,
+			Error:   ErrNoSuchProcedure,
 		})
 	} else {
 		if rproc, ok := d.procedures[reg]; !ok {

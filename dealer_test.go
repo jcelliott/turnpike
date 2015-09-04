@@ -33,7 +33,7 @@ func TestRegister(t *testing.T) {
 			msg := &Register{Request: 321, Procedure: testProcedure}
 			dealer.Register(callee, msg)
 			err := callee.received.(*Error)
-			So(err.Error, ShouldEqual, WAMP_ERROR_PROCEDURE_ALREADY_EXISTS)
+			So(err.Error, ShouldEqual, ErrProcedureAlreadyExists)
 			So(err.Details, ShouldNotBeNil)
 		})
 	})
@@ -80,7 +80,7 @@ func TestCall(t *testing.T) {
 
 			Convey("The caller should have received an ERROR message", func() {
 				err := caller.received.(*Error)
-				So(err.Error, ShouldEqual, WAMP_ERROR_NO_SUCH_PROCEDURE)
+				So(err.Error, ShouldEqual, ErrNoSuchProcedure)
 				So(err.Details, ShouldNotBeNil)
 			})
 		})

@@ -93,8 +93,8 @@ func (r *defaultRouter) RegisterRealm(uri URI, realm Realm) error {
 
 func (r *defaultRouter) Accept(client Peer) error {
 	if r.closing {
-		client.Send(&Abort{Reason: WAMP_ERROR_SYSTEM_SHUTDOWN})
-		client.Close()
+		logErr(client.Send(&Abort{Reason: ErrSystemShutdown}))
+		logErr(client.Close())
 		return fmt.Errorf("Router is closing, no new connections are allowed")
 	}
 
@@ -110,13 +110,13 @@ func (r *defaultRouter) Accept(client Peer) error {
 		return fmt.Errorf("protocol violation: expected HELLO, received %s", msg.MessageType())
 
 	} else if realm, ok := r.realms[hello.Realm]; !ok {
-		logErr(client.Send(&Abort{Reason: WAMP_ERROR_NO_SUCH_REALM}))
+		logErr(client.Send(&Abort{Reason: ErrNoSuchRealm}))
 		logErr(client.Close())
 		return NoSuchRealmError(hello.Realm)
 
 	} else if welcome, err := realm.handleAuth(client, hello.Details); err != nil {
 		abort := &Abort{
-			Reason:  WAMP_ERROR_AUTHORIZATION_FAILED,
+			Reason:  ErrAuthorizationFailed, // TODO: should this be AuthenticationFailed?
 			Details: map[string]interface{}{"error": err.Error()},
 		}
 		logErr(client.Send(abort))

@@ -7,6 +7,10 @@ type Session struct {
 	kill chan URI
 }
 
+func (s Session) String() string {
+	return string(s.Id)
+}
+
 // localPipe creates two linked sessions. Messages sent to one will
 // appear in the Receive of the other. This is useful for implementing
 // client sessions

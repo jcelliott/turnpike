@@ -142,5 +142,5 @@ func (s *WebsocketServer) handleWebsocket(conn *websocket.Conn) {
 	}
 	go peer.run()
 
-	s.Router.Accept(&peer)
+	logErr(s.Router.Accept(&peer))
 }

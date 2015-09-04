@@ -71,7 +71,7 @@ func (br *defaultBroker) Unsubscribe(sub Sender, msg *Unsubscribe) {
 		err := &Error{
 			Type:    msg.MessageType(),
 			Request: msg.Request,
-			Error:   WAMP_ERROR_NO_SUCH_SUBSCRIPTION,
+			Error:   ErrNoSuchSubscription,
 		}
 		sub.Send(err)
 		log.Printf("Error unsubscribing: no such subscription %v", msg.Subscription)

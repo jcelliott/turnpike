@@ -20,7 +20,7 @@ var (
 	}
 	goodbyeClient = &Goodbye{
 		Details: map[string]interface{}{},
-		Reason:  WAMP_ERROR_CLOSE_REALM,
+		Reason:  ErrCloseRealm,
 	}
 )
 

@@ -56,27 +56,27 @@ func (r *Realm) handleSession(sess Session, details map[string]interface{}) {
 		select {
 		case msg, open = <-c:
 			if !open {
-				log.Println("lost session:", sess.Id)
+				log.Println("lost session:", sess)
 				return
 			}
 		case reason := <-sess.kill:
-			sess.Send(&Goodbye{Reason: reason, Details: make(map[string]interface{})})
-			log.Printf("kill session %v: %v", sess.Id, reason)
+			logErr(sess.Send(&Goodbye{Reason: reason, Details: make(map[string]interface{})}))
+			log.Printf("kill session %s: %v", sess, reason)
 			// TODO: wait for client Goodbye?
 			return
 		}
 
-		log.Printf("[%v] %s: %+v", sess.Id, msg.MessageType(), msg)
+		log.Printf("[%s] %s: %+v", sess, msg.MessageType(), msg)
 		if isAuthz, err := r.Authorizer.Authorize(sess.Id, msg, details); !isAuthz {
+			errMsg := &Error{Type: msg.MessageType()}
 			if err != nil {
-				log.Println(sess.Id, msg.MessageType(), err.Error())
+				errMsg.Error = ErrAuthorizationFailed
+				log.Printf("[%s] authorization failed: %v", sess, err)
 			} else {
-				log.Println(sess.Id, msg.MessageType(), WAMP_ERROR_AUTHORIZATION_FAILED)
+				errMsg.Error = ErrNotAuthorized
+				log.Printf("[%s] %s UNAUTHORIZED", sess, msg.MessageType())
 			}
-			sess.Send(&Error{
-				Type:  msg.MessageType(),
-				Error: WAMP_ERROR_AUTHORIZATION_FAILED,
-			})
+			logErr(sess.Send(errMsg))
 			continue
 		}
 
@@ -84,8 +84,8 @@ func (r *Realm) handleSession(sess Session, details map[string]interface{}) {
 
 		switch msg := msg.(type) {
 		case *Goodbye:
-			sess.Send(&Goodbye{Reason: WAMP_ERROR_GOODBYE_AND_OUT, Details: make(map[string]interface{})})
-			log.Printf("session leaving: %v", msg.Reason)
+			logErr(sess.Send(&Goodbye{Reason: ErrGoodbyeAndOut, Details: make(map[string]interface{})}))
+			log.Printf("[%s] leaving: %v", sess, msg.Reason)
 			return
 
 		// Broker messages
@@ -123,7 +123,7 @@ func (r *Realm) handleSession(sess Session, details map[string]interface{}) {
 
 func (r Realm) Close() {
 	for _, client := range r.clients {
-		client.kill <- WAMP_ERROR_SYSTEM_SHUTDOWN
+		client.kill <- ErrSystemShutdown
 	}
 }
 
