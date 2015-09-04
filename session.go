@@ -1,5 +1,9 @@
 package turnpike
 
+import (
+	"fmt"
+)
+
 type Session struct {
 	Peer
 	Id ID
@@ -8,7 +12,7 @@ type Session struct {
 }
 
 func (s Session) String() string {
-	return string(s.Id)
+	return fmt.Sprintf("%d", s.Id)
 }
 
 // localPipe creates two linked sessions. Messages sent to one will
