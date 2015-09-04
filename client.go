@@ -699,9 +699,13 @@ func (c *Client) CallService(namespace string, args []interface{}, reply ...inte
 	}
 
 	for i := 0; i < len(reply); i++ {
-		vReturnValue := reflect.ValueOf(returnValues[i])
 		vReply := reflect.ValueOf(reply[i])
-		vReply.Elem().Set(vReturnValue)
+		tReply := vReply.Type()
+		val, err := decodeArgument(tReply, returnValues[i])
+		if err != nil {
+			return err
+		}
+		vReply.Elem().Set(val)
 	}
 	switch e := returnValues[len(returnValues)-1].(type) {
 	case string:
