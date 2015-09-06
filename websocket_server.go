@@ -42,7 +42,7 @@ type WebsocketServer struct {
 	BinarySerializer Serializer
 }
 
-// Creates a new WebsocketServer from a map of realms
+// NewWebsocketServer creates a new WebsocketServer from a map of realms
 func NewWebsocketServer(realms map[string]Realm) (*WebsocketServer, error) {
 	log.Println("NewWebsocketServer")
 	r := NewDefaultRouter()
@@ -55,7 +55,7 @@ func NewWebsocketServer(realms map[string]Realm) (*WebsocketServer, error) {
 	return s, nil
 }
 
-// Creates a new WebsocketServer with a single basic realm
+// NewBasicWebsocketServer creates a new WebsocketServer with a single basic realm
 func NewBasicWebsocketServer(uri string) *WebsocketServer {
 	log.Println("NewBasicWebsocketServer")
 	s, _ := NewWebsocketServer(map[string]Realm{uri: {}})
@@ -89,13 +89,13 @@ func (s *WebsocketServer) RegisterProtocol(proto string, payloadType int, serial
 
 // GetLocalClient returns a client connected to the specified realm
 func (s *WebsocketServer) GetLocalClient(realm string, details map[string]interface{}) (*Client, error) {
-	if peer, err := s.Router.GetLocalPeer(URI(realm), details); err != nil {
+	peer, err := s.Router.GetLocalPeer(URI(realm), details)
+	if err != nil {
 		return nil, err
-	} else {
-		c := NewClient(peer)
-		go c.Receive()
-		return c, nil
 	}
+	c := NewClient(peer)
+	go c.Receive()
+	return c, nil
 }
 
 // ServeHTTP handles a new HTTP connection.

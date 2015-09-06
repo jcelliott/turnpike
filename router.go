@@ -25,6 +25,7 @@ func (e NoSuchRealmError) Error() string {
 	return "no such realm: " + string(e)
 }
 
+// Peer was unable to authenticate
 type AuthenticationError string
 
 func (e AuthenticationError) Error() string {
@@ -103,17 +104,22 @@ func (r *defaultRouter) Accept(client Peer) error {
 	}
 	log.Printf("%s: %+v", msg.MessageType(), msg)
 
-	if hello, ok := msg.(*Hello); !ok {
+	hello, ok := msg.(*Hello)
+	if !ok {
 		logErr(client.Send(&Abort{Reason: URI("wamp.error.protocol_violation")}))
 		logErr(client.Close())
 		return fmt.Errorf("protocol violation: expected HELLO, received %s", msg.MessageType())
+	}
 
-	} else if realm, ok := r.realms[hello.Realm]; !ok {
+	realm, ok := r.realms[hello.Realm]
+	if !ok {
 		logErr(client.Send(&Abort{Reason: ErrNoSuchRealm}))
 		logErr(client.Close())
 		return NoSuchRealmError(hello.Realm)
+	}
 
-	} else if welcome, err := realm.handleAuth(client, hello.Details); err != nil {
+	welcome, err := realm.handleAuth(client, hello.Details)
+	if err != nil {
 		abort := &Abort{
 			Reason:  ErrAuthorizationFailed, // TODO: should this be AuthenticationFailed?
 			Details: map[string]interface{}{"error": err.Error()},
@@ -121,36 +127,35 @@ func (r *defaultRouter) Accept(client Peer) error {
 		logErr(client.Send(abort))
 		logErr(client.Close())
 		return AuthenticationError(err.Error())
+	}
 
-	} else {
-		welcome.Id = NewID()
+	welcome.Id = NewID()
 
-		if welcome.Details == nil {
-			welcome.Details = make(map[string]interface{})
+	if welcome.Details == nil {
+		welcome.Details = make(map[string]interface{})
+	}
+	// add default details to welcome message
+	for k, v := range defaultWelcomeDetails {
+		if _, ok := welcome.Details[k]; !ok {
+			welcome.Details[k] = v
 		}
-		// add default details to welcome message
-		for k, v := range defaultWelcomeDetails {
-			if _, ok := welcome.Details[k]; !ok {
-				welcome.Details[k] = v
-			}
-		}
-		if err := client.Send(welcome); err != nil {
-			return err
-		}
-		log.Println("Established session:", welcome.Id)
+	}
+	if err := client.Send(welcome); err != nil {
+		return err
+	}
+	log.Println("Established session:", welcome.Id)
 
-		sess := Session{Peer: client, Id: welcome.Id, kill: make(chan URI, 1)}
-		for _, callback := range r.sessionOpenCallbacks {
+	sess := Session{Peer: client, Id: welcome.Id, kill: make(chan URI, 1)}
+	for _, callback := range r.sessionOpenCallbacks {
+		go callback(uint(sess.Id), string(hello.Realm))
+	}
+	go func() {
+		realm.handleSession(sess, welcome.Details)
+		sess.Close()
+		for _, callback := range r.sessionCloseCallbacks {
 			go callback(uint(sess.Id), string(hello.Realm))
 		}
-		go func() {
-			realm.handleSession(sess, welcome.Details)
-			sess.Close()
-			for _, callback := range r.sessionCloseCallbacks {
-				go callback(uint(sess.Id), string(hello.Realm))
-			}
-		}()
-	}
+	}()
 	return nil
 }
 

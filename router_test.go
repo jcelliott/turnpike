@@ -145,20 +145,20 @@ func TestRouterSubscribe(t *testing.T) {
 	r := basicConnect(t, sub, &basicPeer{subServer})
 	defer r.Close()
 
-	subscribeId := NewID()
-	sub.Send(&Subscribe{Request: subscribeId, Topic: testTopic})
+	subscribeID := NewID()
+	sub.Send(&Subscribe{Request: subscribeID, Topic: testTopic})
 
-	var subscriptionId ID
+	var subscriptionID ID
 	select {
 	case <-time.After(time.Millisecond):
 		t.Fatal("Timed out waiting for SUBSCRIBED")
 	case msg := <-sub.incoming:
 		if subMsg, ok := msg.(*Subscribed); !ok {
 			t.Fatalf("Expected SUBSCRIBED, but received %s instead: %+v", msg.MessageType(), msg)
-		} else if subMsg.Request != subscribeId {
-			t.Fatalf("Request id does not match the one sent: %d != %d", subMsg.Request, subscribeId)
+		} else if subMsg.Request != subscribeID {
+			t.Fatalf("Request id does not match the one sent: %d != %d", subMsg.Request, subscribeID)
 		} else {
-			subscriptionId = subMsg.Subscription
+			subscriptionID = subMsg.Subscription
 		}
 	}
 
@@ -168,8 +168,8 @@ func TestRouterSubscribe(t *testing.T) {
 	if err := r.Accept(&basicPeer{pubServer}); err != nil {
 		t.Fatal("Error pubing publisher")
 	}
-	pubId := NewID()
-	pub.Send(&Publish{Request: pubId, Topic: testTopic})
+	pubID := NewID()
+	pub.Send(&Publish{Request: pubID, Topic: testTopic})
 
 	select {
 	case <-time.After(time.Millisecond):
@@ -177,8 +177,8 @@ func TestRouterSubscribe(t *testing.T) {
 	case msg := <-sub.incoming:
 		if event, ok := msg.(*Event); !ok {
 			t.Errorf("Expected EVENT, but received %s instead: %+v", msg.MessageType(), msg)
-		} else if event.Subscription != subscriptionId {
-			t.Errorf("Subscription id does not match the one sent: %d != %d", event.Subscription, subscriptionId)
+		} else if event.Subscription != subscriptionID {
+			t.Errorf("Subscription id does not match the one sent: %d != %d", event.Subscription, subscriptionID)
 		}
 		// TODO: check Details, Arguments, ArgumentsKw
 	}
@@ -193,21 +193,21 @@ func TestRouterCall(t *testing.T) {
 	r := basicConnect(t, callee, &basicPeer{calleeServer})
 	defer r.Close()
 
-	registerId := NewID()
+	registerID := NewID()
 	// callee registers remote procedure
-	callee.Send(&Register{Request: registerId, Procedure: testProcedure})
+	callee.Send(&Register{Request: registerID, Procedure: testProcedure})
 
-	var registrationId ID
+	var registrationID ID
 	select {
 	case <-time.After(time.Millisecond):
 		t.Fatal("Timed out waiting for REGISTERED")
 	case msg := <-callee.incoming:
 		if registered, ok := msg.(*Registered); !ok {
 			t.Fatalf("Expected REGISTERED, but received %s instead: %+v", msg.MessageType(), msg)
-		} else if registered.Request != registerId {
-			t.Fatalf("Request id does not match the one sent: %d != %d", registered.Request, registerId)
+		} else if registered.Request != registerID {
+			t.Fatalf("Request id does not match the one sent: %d != %d", registered.Request, registerID)
 		} else {
-			registrationId = registered.Registration
+			registrationID = registered.Registration
 		}
 	}
 
@@ -220,26 +220,26 @@ func TestRouterCall(t *testing.T) {
 	if msg := <-caller.incoming; msg.MessageType() != WELCOME {
 		t.Fatal("Expected first message sent to be a welcome message")
 	}
-	callId := NewID()
+	callID := NewID()
 	// caller calls remote procedure
-	caller.Send(&Call{Request: callId, Procedure: testProcedure})
+	caller.Send(&Call{Request: callID, Procedure: testProcedure})
 
-	var invocationId ID
+	var invocationID ID
 	select {
 	case <-time.After(time.Millisecond):
 		t.Fatal("Timed out waiting for INVOCATION")
 	case msg := <-callee.incoming:
 		if invocation, ok := msg.(*Invocation); !ok {
 			t.Errorf("Expected INVOCATION, but received %s instead: %+v", msg.MessageType(), msg)
-		} else if invocation.Registration != registrationId {
-			t.Errorf("Registration id does not match the one assigned: %d != %d", invocation.Registration, registrationId)
+		} else if invocation.Registration != registrationID {
+			t.Errorf("Registration id does not match the one assigned: %d != %d", invocation.Registration, registrationID)
 		} else {
-			invocationId = invocation.Request
+			invocationID = invocation.Request
 		}
 	}
 
 	// callee returns result of remove procedure
-	callee.Send(&Yield{Request: invocationId})
+	callee.Send(&Yield{Request: invocationID})
 
 	select {
 	case <-time.After(time.Millisecond):
@@ -247,8 +247,8 @@ func TestRouterCall(t *testing.T) {
 	case msg := <-caller.incoming:
 		if result, ok := msg.(*Result); !ok {
 			t.Errorf("Expected RESULT, but received %s instead: %+v", msg.MessageType(), msg)
-		} else if result.Request != callId {
-			t.Errorf("Result id does not match the call id: %d != %d", result.Request, callId)
+		} else if result.Request != callID {
+			t.Errorf("Result id does not match the call id: %d != %d", result.Request, callID)
 		}
 	}
 }

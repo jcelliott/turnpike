@@ -14,14 +14,14 @@ type Dealer interface {
 	Error(Sender, *Error)
 }
 
-type RemoteProcedure struct {
+type remoteProcedure struct {
 	Endpoint  Sender
 	Procedure URI
 }
 
 type defaultDealer struct {
 	// map registration IDs to procedures
-	procedures map[ID]RemoteProcedure
+	procedures map[ID]remoteProcedure
 	// map procedure URIs to registration IDs
 	// TODO: this will eventually need to be `map[URI][]ID` to support
 	// multiple callees for the same procedure
@@ -32,9 +32,10 @@ type defaultDealer struct {
 	invocations map[ID]ID
 }
 
+// NewDefaultDealer returns the default turnpike dealer implementation
 func NewDefaultDealer() Dealer {
 	return &defaultDealer{
-		procedures:    make(map[ID]RemoteProcedure),
+		procedures:    make(map[ID]remoteProcedure),
 		registrations: make(map[URI]ID),
 		calls:         make(map[ID]Sender),
 		invocations:   make(map[ID]ID),
@@ -53,7 +54,7 @@ func (d *defaultDealer) Register(callee Sender, msg *Register) {
 		return
 	}
 	reg := NewID()
-	d.procedures[reg] = RemoteProcedure{callee, msg.Procedure}
+	d.procedures[reg] = remoteProcedure{callee, msg.Procedure}
 	d.registrations[msg.Procedure] = reg
 	log.Printf("registered procedure %v [%v]", reg, msg.Procedure)
 	callee.Send(&Registered{

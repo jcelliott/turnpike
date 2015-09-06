@@ -10,6 +10,7 @@ import (
 	"github.com/ugorji/go/codec"
 )
 
+// Serialization indicates the data serialization format used in a WAMP session
 type Serialization int
 
 const (
@@ -110,7 +111,8 @@ func applySlice(dst reflect.Value, src reflect.Value) error {
 	return nil
 }
 
-// Serialiazer is a generic WAMP message serializer used when sending data over a transport.
+// Serializer is the interface implemented by an object that can serialize and
+// deserialize WAMP messages
 type Serializer interface {
 	Serialize(Message) ([]byte, error)
 	Deserialize([]byte) (Message, error)
@@ -139,8 +141,8 @@ func toList(msg Message) []interface{} {
 	return ret
 }
 
-// MessagePack is an implementation of Serializer that handles serializing
-// and deserializing msgpack encoded payloads.
+// MessagePackSerializer is an implementation of Serializer that handles
+// serializing and deserializing msgpack encoded payloads.
 type MessagePackSerializer struct {
 }
 
@@ -205,7 +207,8 @@ func (s *JSONSerializer) Deserialize(data []byte) (Message, error) {
 	return apply(msgType, arr)
 }
 
-// Marshals and unmarshals byte arrays according to WAMP specifications:
+// BindaryData is a byte array that can be marshalled and unmarshalled according
+// to WAMP specifications:
 // https://github.com/tavendo/WAMP/blob/master/spec/basic.md#binary-conversion-of-json-strings
 //
 // This type *should* be used in types that will be marshalled as JSON.

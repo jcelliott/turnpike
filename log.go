@@ -30,11 +30,12 @@ func init() {
 	}
 }
 
-// change log output to stderr
+// Debug changes the log output to stderr
 func Debug() {
 	log = glog.New(os.Stderr, "", logFlags)
 }
 
+// SetLogger allows users to inject their own logger instead of the default one.
 func SetLogger(l Logger) {
 	log = l
 }

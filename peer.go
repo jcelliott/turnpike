@@ -26,7 +26,8 @@ type Peer interface {
 	Receive() <-chan Message
 }
 
-// Convenience function to get a single message from a peer
+// GetMessageTimeout is a convenience function to get a single message from a
+// peer within a specified period of time
 func GetMessageTimeout(p Peer, t time.Duration) (Message, error) {
 	select {
 	case msg, open := <-p.Receive():

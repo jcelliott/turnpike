@@ -49,7 +49,8 @@ type eventDesc struct {
 	handler EventHandler
 }
 
-// Creates a new websocket client.
+// NewWebsocketClient creates a new websocket client connected to the specified
+// `url` and using the specified `serialization`.
 func NewWebsocketClient(serialization Serialization, url string) (*Client, error) {
 	p, err := NewWebsocketPeer(serialization, url, "")
 	if err != nil {
@@ -247,12 +248,12 @@ func (c *Client) Receive() {
 	}
 }
 
-func (c *Client) notifyListener(msg Message, requestId ID) {
+func (c *Client) notifyListener(msg Message, requestID ID) {
 	// pass in the request ID so we don't have to do any type assertion
-	if l, ok := c.listeners[requestId]; ok {
+	if l, ok := c.listeners[requestID]; ok {
 		l <- msg
 	} else {
-		log.Println("no listener for message", msg.MessageType(), requestId)
+		log.Println("no listener for message", msg.MessageType(), requestID)
 	}
 }
 
@@ -305,16 +306,16 @@ func (c *Client) registerListener(id ID) {
 
 func (c *Client) waitOnListener(id ID) (msg Message, err error) {
 	log.Println("wait on listener:", id)
-	if wait, ok := c.listeners[id]; !ok {
+	wait, ok := c.listeners[id]
+	if !ok {
 		return nil, fmt.Errorf("unknown listener ID: %v", id)
-	} else {
-		select {
-		case msg = <-wait:
-			return
-		case <-time.After(c.ReceiveTimeout):
-			err = fmt.Errorf("timeout while waiting for message")
-			return
-		}
+	}
+	select {
+	case msg = <-wait:
+		return
+	case <-time.After(c.ReceiveTimeout):
+		err = fmt.Errorf("timeout while waiting for message")
+		return
 	}
 }
 
