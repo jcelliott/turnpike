@@ -7,7 +7,8 @@ import (
 // Session represents an active WAMP session
 type Session struct {
 	Peer
-	Id ID
+	Id      ID
+	Details map[string]interface{}
 
 	kill chan URI
 }

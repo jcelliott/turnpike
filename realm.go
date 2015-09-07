@@ -25,10 +25,35 @@ type Realm struct {
 	// DefaultAuth      func(details map[string]interface{}) (map[string]interface{}, error)
 	AuthTimeout time.Duration
 	clients     map[ID]Session
+	localClient
+}
+
+type localClient struct {
+	*Client
+}
+
+func (r *Realm) getPeer(details map[string]interface{}) (Peer, error) {
+	peerA, peerB := localPipe()
+	sess := Session{Peer: peerA, Id: NewID(), Details: details, kill: make(chan URI, 1)}
+	if details == nil {
+		details = make(map[string]interface{})
+	}
+	go r.handleSession(sess)
+	log.Println("Established internal session:", sess)
+	return peerB, nil
+}
+
+// Close disconnects all clients after sending a goodbye message
+func (r Realm) Close() {
+	for _, client := range r.clients {
+		client.kill <- ErrSystemShutdown
+	}
 }
 
 func (r *Realm) init() {
 	r.clients = make(map[ID]Session)
+	p, _ := r.getPeer(nil)
+	r.localClient.Client = NewClient(p)
 	if r.Broker == nil {
 		r.Broker = NewDefaultBroker()
 	}
@@ -46,10 +71,23 @@ func (r *Realm) init() {
 	}
 }
 
-func (r *Realm) handleSession(sess Session, details map[string]interface{}) {
+// func (r *Realm) metaHandler(c *Client) {
+// }
+
+func (l *localClient) onJoin(details map[string]interface{}) {
+	l.Publish("wamp.session.on_join", []interface{}{details}, nil)
+}
+
+func (l *localClient) onLeave(session ID) {
+	l.Publish("wamp.session.on_leave", []interface{}{session}, nil)
+}
+
+func (r *Realm) handleSession(sess Session) {
 	r.clients[sess.Id] = sess
+	r.onJoin(sess.Details)
 	defer func() {
 		delete(r.clients, sess.Id)
+		r.onLeave(sess.Id)
 	}()
 	c := sess.Receive()
 	// TODO: what happens if the realm is closed?
@@ -71,7 +109,7 @@ func (r *Realm) handleSession(sess Session, details map[string]interface{}) {
 		}
 
 		log.Printf("[%s] %s: %+v", sess, msg.MessageType(), msg)
-		if isAuthz, err := r.Authorizer.Authorize(sess.Id, msg, details); !isAuthz {
+		if isAuthz, err := r.Authorizer.Authorize(sess.Id, msg, sess.Details); !isAuthz {
 			errMsg := &Error{Type: msg.MessageType()}
 			if err != nil {
 				errMsg.Error = ErrAuthorizationFailed
@@ -84,7 +122,7 @@ func (r *Realm) handleSession(sess Session, details map[string]interface{}) {
 			continue
 		}
 
-		r.Interceptor.Intercept(sess.Id, &msg, details)
+		r.Interceptor.Intercept(sess.Id, &msg, sess.Details)
 
 		switch msg := msg.(type) {
 		case *Goodbye:
@@ -122,13 +160,6 @@ func (r *Realm) handleSession(sess Session, details map[string]interface{}) {
 		default:
 			log.Println("Unhandled message:", msg.MessageType())
 		}
-	}
-}
-
-// Close disconnects all clients after sending a goodbye message
-func (r Realm) Close() {
-	for _, client := range r.clients {
-		client.kill <- ErrSystemShutdown
 	}
 }
 

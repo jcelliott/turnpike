@@ -88,6 +88,7 @@ func (r *defaultRouter) RegisterRealm(uri URI, realm Realm) error {
 	}
 	realm.init()
 	r.realms[uri] = realm
+	log.Println("registered realm:", uri)
 	return nil
 }
 
@@ -145,12 +146,20 @@ func (r *defaultRouter) Accept(client Peer) error {
 	}
 	log.Println("Established session:", welcome.Id)
 
-	sess := Session{Peer: client, Id: welcome.Id, kill: make(chan URI, 1)}
+	// session details
+	welcome.Details["session"] = welcome.Id
+	welcome.Details["realm"] = hello.Realm
+	sess := Session{
+		Peer:    client,
+		Id:      welcome.Id,
+		Details: welcome.Details,
+		kill:    make(chan URI, 1),
+	}
 	for _, callback := range r.sessionOpenCallbacks {
 		go callback(uint(sess.Id), string(hello.Realm))
 	}
 	go func() {
-		realm.handleSession(sess, welcome.Details)
+		realm.handleSession(sess)
 		sess.Close()
 		for _, callback := range r.sessionCloseCallbacks {
 			go callback(uint(sess.Id), string(hello.Realm))
@@ -161,19 +170,12 @@ func (r *defaultRouter) Accept(client Peer) error {
 
 // GetLocalPeer returns an internal peer connected to the specified realm.
 func (r *defaultRouter) GetLocalPeer(realmURI URI, details map[string]interface{}) (Peer, error) {
-	peerA, peerB := localPipe()
-	sess := Session{Peer: peerA, Id: NewID(), kill: make(chan URI, 1)}
-	log.Println("Established internal session:", sess.Id)
-	if realm, ok := r.realms[realmURI]; ok {
-		// TODO: session open/close callbacks?
-		if details == nil {
-			details = make(map[string]interface{})
-		}
-		go realm.handleSession(sess, details)
-	} else {
+	realm, ok := r.realms[realmURI]
+	if !ok {
 		return nil, NoSuchRealmError(realmURI)
 	}
-	return peerB, nil
+	// TODO: session open/close callbacks?
+	return realm.getPeer(details)
 }
 
 func (r *defaultRouter) getTestPeer() Peer {
