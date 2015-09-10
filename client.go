@@ -393,7 +393,7 @@ type MethodHandler func(
 ) (result *CallResult)
 
 // Register registers a MethodHandler procedure with the router.
-func (c *Client) Register(procedure string, fn MethodHandler, options map[string]interface{}) error {
+func (c *Client) Register(procedure string, options map[string]interface{}, fn MethodHandler) error {
 	id := NewID()
 	c.registerListener(id)
 	register := &Register{
@@ -429,7 +429,7 @@ func (c *Client) BasicRegister(procedure string, fn BasicMethodHandler) error {
 		details map[string]interface{}) (result *CallResult) {
 		return fn(args, kwargs)
 	}
-	return c.Register(procedure, wrap, make(map[string]interface{}))
+	return c.Register(procedure, make(map[string]interface{}), wrap)
 }
 
 // Unregister removes a procedure with the router
