@@ -3,11 +3,10 @@ package turnpike
 // Authorizer is the interface implemented by an object that can determine
 // whether a particular request is authorized or not.
 //
-// Authorize takes the session ID, the message (request), and the WELCOME
-// details for that session and returns true if the request is authorized,
-// otherwise false.
+// Authorize takes the session and the message (request), and returns true if
+// the request is authorized, otherwise false.
 type Authorizer interface {
-	Authorize(id ID, msg Message, details map[string]interface{}) (bool, error)
+	Authorize(session Session, msg Message) (bool, error)
 }
 
 // DefaultAuthorizer always returns authorized.
@@ -19,6 +18,6 @@ func NewDefaultAuthorizer() Authorizer {
 	return &defaultAuthorizer{}
 }
 
-func (da *defaultAuthorizer) Authorize(id ID, msg Message, details map[string]interface{}) (bool, error) {
+func (da *defaultAuthorizer) Authorize(session Session, msg Message) (bool, error) {
 	return true, nil
 }
