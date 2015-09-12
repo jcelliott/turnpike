@@ -109,7 +109,7 @@ func (r *Realm) handleSession(sess Session) {
 		}
 
 		log.Printf("[%s] %s: %+v", sess, msg.MessageType(), msg)
-		if isAuthz, err := r.Authorizer.Authorize(sess.Id, msg, sess.Details); !isAuthz {
+		if isAuthz, err := r.Authorizer.Authorize(sess, msg); !isAuthz {
 			errMsg := &Error{Type: msg.MessageType()}
 			if err != nil {
 				errMsg.Error = ErrAuthorizationFailed
@@ -122,7 +122,7 @@ func (r *Realm) handleSession(sess Session) {
 			continue
 		}
 
-		r.Interceptor.Intercept(sess.Id, &msg, sess.Details)
+		r.Interceptor.Intercept(sess, &msg)
 
 		switch msg := msg.(type) {
 		case *Goodbye:
