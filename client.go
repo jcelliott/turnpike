@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/mitchellh/mapstructure"
 	"reflect"
+	"strings"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -43,8 +44,9 @@ type Client struct {
 }
 
 type service struct {
-	name    string
-	methods map[string]reflect.Method
+	name       string
+	procedures map[string]reflect.Method
+	topics     map[string]reflect.Method
 }
 
 type procedureDesc struct {
@@ -558,7 +560,8 @@ func (c *Client) registerService(rcvr interface{}, name string, useName bool) er
 		return fmt.Errorf("service %s is already defined", sname)
 	}
 
-	methods := make(map[string]reflect.Method)
+	procedures := make(map[string]reflect.Method)
+	topics := make(map[string]reflect.Method)
 	for m := 0; m < typ.NumMethod(); m++ {
 		method := typ.Method(m)
 		mtype := method.Type
@@ -568,9 +571,13 @@ func (c *Client) registerService(rcvr interface{}, name string, useName bool) er
 			continue
 		}
 
-		// Method needs at least one out
+		// Method needs at least one out to be a procedure
 		numOut := mtype.NumOut()
-		if numOut < 1 {
+		if numOut == 0 {
+			// A method with zero outs must start with On to be a event listener
+			if strings.HasPrefix(mname, "On") {
+				topics[mname] = method
+			}
 			continue
 		}
 
@@ -578,22 +585,18 @@ func (c *Client) registerService(rcvr interface{}, name string, useName bool) er
 		if errType := mtype.Out(numOut - 1); errType != typeOfError {
 			continue
 		}
-		methods[mname] = method
+
+		procedures[mname] = method
 	}
 
-	c.serviceMap[sname] = &service{
-		methods: methods,
-		name:    sname,
-	}
-
-	// Register methods as procedure with Dealer
-	for mname, value := range methods {
-		var method = value
+	// Register methods as procedures with Dealer
+	for mname, value := range procedures {
+		procedure := value
 		namespace := sname + "." + mname
 		f := func(args []interface{}, kwargs map[string]interface{}, details map[string]interface{}) (callResult *CallResult) {
-			methodArgs := method.Type.NumIn() - 1
+			methodArgs := procedure.Type.NumIn() - 1
 			if methodArgs != len(args) {
-				err := fmt.Errorf("procedure %s has %d inputs, was called with %d arguments", namespace, methodArgs, len(args))
+				err := fmt.Errorf("method %s has %d inputs, was called with %d arguments as %s procedure ", procedure.Name, methodArgs, len(args), namespace)
 				return &CallResult{
 					Args: []interface{}{err.Error()},
 					Err:  WAMP_ERROR_INVALID_ARGUMENT,
@@ -602,7 +605,7 @@ func (c *Client) registerService(rcvr interface{}, name string, useName bool) er
 			values := make([]reflect.Value, len(args))
 			var err error
 			for i, arg := range args {
-				in := method.Type.In(i + 1)
+				in := procedure.Type.In(i + 1)
 				values[i], err = decodeArgument(in, arg)
 				if err != nil {
 					return &CallResult{
@@ -612,7 +615,7 @@ func (c *Client) registerService(rcvr interface{}, name string, useName bool) er
 				}
 			}
 			values = append([]reflect.Value{val}, values...)
-			function := method.Func
+			function := procedure.Func
 			returnValues := function.Call(values)
 
 			result := make([]interface{}, len(returnValues))
@@ -623,9 +626,43 @@ func (c *Client) registerService(rcvr interface{}, name string, useName bool) er
 				Args: result,
 			}
 		}
-		c.Register(namespace, f, map[string]interface{}{})
+		if err := c.Register(namespace, f, map[string]interface{}{}); err != nil {
+			return err
+		}
 	}
 
+	// Subscribe methods to topics with the broker
+	for mname, value := range topics {
+		topic := value
+		namespace := sname + "." + mname
+		f := func(args []interface{}, kwargs map[string]interface{}) {
+			methodArgs := topic.Type.NumIn() - 1
+			if methodArgs != len(args) {
+				log.Printf("event %s has %d inputs, was published with %d arguments", namespace, methodArgs, len(args))
+				return
+			}
+			values := make([]reflect.Value, len(args))
+			var err error
+			for i, arg := range args {
+				in := topic.Type.In(i + 1)
+				values[i], err = decodeArgument(in, arg)
+				if err != nil {
+					log.Print(err)
+					return
+				}
+			}
+			values = append([]reflect.Value{val}, values...)
+			topic.Func.Call(values)
+		}
+		if err := c.Subscribe(namespace, f); err != nil {
+			return err
+		}
+	}
+	c.serviceMap[sname] = &service{
+		procedures: procedures,
+		topics:     topics,
+		name:       sname,
+	}
 	return nil
 }
 
@@ -659,34 +696,38 @@ func decodeArgument(target reflect.Type, arg interface{}) (reflect.Value, error)
 		targ := reflect.TypeOf(arg)
 		if targ.Kind() == reflect.Float64 {
 			return reflect.ValueOf(arg).Convert(target), nil
-		} else {
-			return reflect.ValueOf(arg), nil
 		}
-	default:
-		return reflect.ValueOf(arg), nil
 	}
+	return reflect.ValueOf(arg), nil
 }
 
+// UnregisterService unsubscribes the service event listeners and unregisters the service procedures.
 func (c *Client) UnregisterService(name string) error {
 	service, present := c.serviceMap[name]
 	if !present {
 		return fmt.Errorf("service %s is not defined", name)
 	}
 	var err error
-	for methodName := range service.methods {
-		err = c.Unregister(service.name + "." + methodName)
+	for procedureName := range service.procedures {
+		err = c.Unregister(service.name + "." + procedureName)
+		// TODO capture all possible errors, not only the last one
+	}
+	for topicName := range service.topics {
+		err = c.Unsubscribe(service.name + "." + topicName)
 		// TODO capture all possible errors, not only the last one
 	}
 	c.serviceMap[name] = nil
 	return err
 }
 
-func (c *Client) CallService(namespace string, args []interface{}, reply ...interface{}) error {
-	for i := 0; i < len(reply); i++ {
-		if reply[i] == nil {
+// CallService invokes the service method 'namespace' with arguments 'args'.
+// The return values are saved in 'replies'.
+func (c *Client) CallService(namespace string, args []interface{}, replies ...interface{}) error {
+	for i := 0; i < len(replies); i++ {
+		if replies[i] == nil {
 			continue
 		}
-		kind := reflect.ValueOf(reply[i]).Kind()
+		kind := reflect.ValueOf(replies[i]).Kind()
 		if kind != reflect.Ptr {
 			return fmt.Errorf("reply[%d] type %s is not a pointer", i, kind)
 		}
@@ -697,24 +738,24 @@ func (c *Client) CallService(namespace string, args []interface{}, reply ...inte
 		return err
 	}
 	returnValues := res.Arguments
-	if len(returnValues)-1 < len(reply) {
-		return fmt.Errorf("expected %d return values, got %d", len(returnValues)-1, len(reply))
+	if len(returnValues)-1 < len(replies) {
+		return fmt.Errorf("expected %d return values, got %d", len(returnValues)-1, len(replies))
 	}
 	if len(returnValues) == 0 {
 		return fmt.Errorf("expected at least one return value of type string, nil or error")
 	}
 
-	for i := 0; i < len(reply); i++ {
-		if reply[i] == nil {
+	for i := 0; i < len(replies); i++ {
+		if replies[i] == nil {
 			continue
 		}
-		vReply := reflect.ValueOf(reply[i])
-		tReply := vReply.Type()
-		val, err := decodeArgument(tReply, returnValues[i])
+		vReplies := reflect.ValueOf(replies[i])
+		tReplies := vReplies.Type()
+		val, err := decodeArgument(tReplies, returnValues[i])
 		if err != nil {
 			return err
 		}
-		vReply.Elem().Set(val)
+		vReplies.Elem().Set(val)
 	}
 	switch e := returnValues[len(returnValues)-1].(type) {
 	case string:
@@ -726,5 +767,4 @@ func (c *Client) CallService(namespace string, args []interface{}, reply ...inte
 	default:
 		return fmt.Errorf("expected the last return value to be of type string, nil or error got %T", e)
 	}
-	return nil
 }
