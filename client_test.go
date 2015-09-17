@@ -2,6 +2,7 @@ package turnpike
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -204,12 +205,15 @@ func TestRemoteCall(t *testing.T) {
 					info := &ServiceInfo{
 						ServiceName: "NewServiceName",
 					}
+					s.m.Lock()
 					err := caller.CallService("ValidService.SetInfo", []interface{}{info})
 					Convey("and expects no error", func() {
 						So(err, ShouldBeNil)
 					})
 					Convey("and expects the value of s.name to be 'NewServiceName'", func() {
+						s.m.Lock()
 						So(s.name, ShouldEqual, "NewServiceName")
+						s.m.Unlock()
 					})
 				})
 
@@ -218,6 +222,22 @@ func TestRemoteCall(t *testing.T) {
 					Convey("and expects an error", func() {
 						So(err, ShouldNotBeNil)
 						So(err.Error(), ShouldEqual, "Error")
+					})
+				})
+
+				Convey("The caller publishes an event", func() {
+					info := &ServiceInfo{
+						ServiceName: "EventChangedName",
+					}
+					s.m.Lock()
+					err := caller.Publish("ValidService.OnNewInfo", []interface{}{info}, map[string]interface{}{})
+					Convey("and expects no error", func() {
+						So(err, ShouldBeNil)
+					})
+					Convey("and expects the value of s.name to be 'EventChangedName'", func() {
+						s.m.Lock()
+						So(s.name, ShouldEqual, "EventChangedName")
+						s.m.Unlock()
 					})
 				})
 			})
@@ -259,6 +279,7 @@ func (s *noReturnValueOfTypeErrorService) NoReturnValue() string { return "" }
 
 type ValidService struct {
 	name string
+	m    sync.Mutex
 }
 
 func (s *ValidService) Ping() (string, error) {
@@ -275,8 +296,14 @@ func (s *ValidService) Info() (*ServiceInfo, error) {
 	}, nil
 }
 
+func (s *ValidService) OnNewInfo(info *ServiceInfo) {
+	s.name = info.ServiceName
+	s.m.Unlock()
+}
+
 func (s *ValidService) SetInfo(info *ServiceInfo) error {
 	s.name = info.ServiceName
+	s.m.Unlock()
 	return nil
 }
 
