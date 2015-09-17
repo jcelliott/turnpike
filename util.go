@@ -1,6 +1,8 @@
 package turnpike
 
 import (
+	"bytes"
+	"fmt"
 	"math/rand"
 	"time"
 )
@@ -73,4 +75,39 @@ func init() {
 // NewID generates a random WAMP ID.
 func NewID() ID {
 	return ID(rand.Int63n(maxId))
+}
+
+func newErrCol() errCol {
+	return make(errCol, 0)
+}
+
+type errCol []error
+
+func (e *errCol) IfErrAppend(err error) bool {
+	if err != nil {
+		*e = append(*e, err)
+		return true
+	}
+	return false
+}
+
+func (e errCol) Error() string {
+	if len(e) == 0 {
+		return ""
+	}
+	var buf bytes.Buffer
+	if len(e) == 1 {
+		buf.WriteString("1 error: ")
+	} else {
+		fmt.Fprintf(&buf, "%d errors: ", len(e))
+	}
+
+	for i, err := range e {
+		if i != 0 {
+			buf.WriteString("; ")
+		}
+		buf.WriteString(err.Error())
+	}
+
+	return buf.String()
 }

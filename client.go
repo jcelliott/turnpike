@@ -707,17 +707,20 @@ func (c *Client) UnregisterService(name string) error {
 	if !present {
 		return fmt.Errorf("service %s is not defined", name)
 	}
-	var err error
+	errs := newErrCol()
 	for procedureName := range service.procedures {
-		err = c.Unregister(service.name + "." + procedureName)
-		// TODO capture all possible errors, not only the last one
+		err := c.Unregister(service.name + "." + procedureName)
+		errs.IfErrAppend(err)
 	}
 	for topicName := range service.topics {
-		err = c.Unsubscribe(service.name + "." + topicName)
-		// TODO capture all possible errors, not only the last one
+		err := c.Unsubscribe(service.name + "." + topicName)
+		errs.IfErrAppend(err)
 	}
 	c.serviceMap[name] = nil
-	return err
+	if len(errs) == 0 {
+		return nil
+	}
+	return errs
 }
 
 // CallService invokes the service method 'namespace' with arguments 'args'.
