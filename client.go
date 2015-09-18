@@ -606,7 +606,7 @@ func (c *Client) registerService(rcvr interface{}, name string, useName bool) er
 				err := fmt.Errorf("method %s has %d inputs, was called with %d arguments as %s procedure ", procedure.Name, methodArgs, len(args), namespace)
 				return &CallResult{
 					Args: []interface{}{err.Error()},
-					Err:  WAMP_ERROR_INVALID_ARGUMENT,
+					Err:  ErrInvalidArgument,
 				}
 			}
 			values := make([]reflect.Value, len(args))
@@ -617,7 +617,7 @@ func (c *Client) registerService(rcvr interface{}, name string, useName bool) er
 				if err != nil {
 					return &CallResult{
 						Args: []interface{}{err.Error()},
-						Err:  WAMP_ERROR_INVALID_ARGUMENT,
+						Err:  ErrInvalidArgument,
 					}
 				}
 			}
@@ -654,7 +654,7 @@ func (c *Client) registerService(rcvr interface{}, name string, useName bool) er
 				in := topic.Type.In(i + 1)
 				values[i], err = decodeArgument(in, arg)
 				if err != nil {
-					log.Print(err)
+					log.Println(err)
 					return
 				}
 			}
