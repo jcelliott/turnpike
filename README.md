@@ -1,7 +1,7 @@
 Turnpike [![Build Status](https://drone.io/github.com/jcelliott/turnpike/status.png)](https://drone.io/github.com/jcelliott/turnpike/latest) [![Coverage Status](https://coveralls.io/repos/jcelliott/turnpike/badge.svg?branch=v2)](https://coveralls.io/r/jcelliott/turnpike?branch=v2) [![GoDoc](https://godoc.org/gopkg.in/jcelliott/turnpike?status.svg)](http://godoc.org/gopkg.in/jcelliott/turnpike)
 ===
 
-Go implementation of [WAMP](http://www.wamp.ws/) - The Web Application Messaging Protocol
+Go implementation of [WAMP](http://wamp.ws/) - The Web Application Messaging Protocol
 
 > WAMP ("The Web Application Messaging Protocol") is a communication protocol
 > that enables distributed application architectures, with application
