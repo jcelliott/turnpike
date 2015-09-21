@@ -526,7 +526,6 @@ func (c *Client) Call(procedure string, args []interface{}, kwargs map[string]in
 // RegisterService registers in the dealer the set of methods of the
 // receiver value that satisfy the following conditions:
 //	- exported method of exported type
-//	- two arguments, both of exported type
 //	- at least one return value, of type error
 // It returns an error if the receiver is not an exported type or has
 // no suitable methods.
