@@ -225,6 +225,15 @@ func TestRemoteCall(t *testing.T) {
 					})
 				})
 
+				Convey("The caller calls the Simple method of the service", func() {
+					var st SimpleType
+					err := caller.CallService("ValidService.SimpleType", nil, &st)
+					Convey("and expects an error", func() {
+						So(err, ShouldBeNil)
+						So(st, ShouldEqual, SimpleType("simple"))
+					})
+				})
+
 				Convey("The caller publishes an event", func() {
 					info := &ServiceInfo{
 						ServiceName: "EventChangedName",
@@ -277,6 +286,8 @@ type noReturnValueOfTypeErrorService struct{}
 
 func (s *noReturnValueOfTypeErrorService) NoReturnValue() string { return "" }
 
+type SimpleType string
+
 type ValidService struct {
 	name string
 	m    sync.Mutex
@@ -305,6 +316,10 @@ func (s *ValidService) SetInfo(info *ServiceInfo) error {
 	s.name = info.ServiceName
 	s.m.Unlock()
 	return nil
+}
+
+func (s *ValidService) SimpleType() (SimpleType, error) {
+	return SimpleType("simple"), nil
 }
 
 func (s *ValidService) Error() error {

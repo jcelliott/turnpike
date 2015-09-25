@@ -1,8 +1,8 @@
 package turnpike
 
 import (
+	"encoding/json"
 	"fmt"
-	"github.com/mitchellh/mapstructure"
 	"reflect"
 	"strings"
 	"time"
@@ -676,35 +676,14 @@ func decodeArgument(target reflect.Type, arg interface{}) (reflect.Value, error)
 	if arg == nil {
 		return reflect.Zero(target), nil
 	}
-	switch target.Kind() {
-	case reflect.Ptr:
-		return decodeArgument(target.Elem(), arg)
-	case reflect.Struct:
-		val := reflect.New(target)
-		err := mapstructure.Decode(arg, val.Interface())
+	val := reflect.New(target)
+	b, err := json.Marshal(arg)
+	if err != nil {
 		return val, err
-	case reflect.Slice:
-		varg := reflect.ValueOf(arg)
-		val := reflect.MakeSlice(target, varg.Len(), varg.Len())
-		for i := 0; i < varg.Len(); i++ {
-			v := varg.Index(i)
-			e := val.Index(i)
-			kind := target.Elem()
-			vargEle, err := decodeArgument(kind, v.Interface())
-			if err != nil {
-				return val, err
-			}
-			e.Set(vargEle)
-		}
-		return val, nil
-	// Special case for ints, numbers are decoded as float64
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		targ := reflect.TypeOf(arg)
-		if targ.Kind() == reflect.Float64 {
-			return reflect.ValueOf(arg).Convert(target), nil
-		}
 	}
-	return reflect.ValueOf(arg), nil
+	err = json.Unmarshal(b, val.Interface())
+	v := reflect.Indirect(val)
+	return v, err
 }
 
 // UnregisterService unsubscribes the service event listeners and unregisters the service procedures.
@@ -748,7 +727,7 @@ func (c *Client) CallService(namespace string, args []interface{}, replies ...in
 	}
 	returnValues := res.Arguments
 	if len(returnValues)-1 < len(replies) {
-		return fmt.Errorf("expected %d return values, got %d", len(returnValues)-1, len(replies))
+		return fmt.Errorf("expected %d return values, got %d", len(replies), len(returnValues)-1)
 	}
 	if len(returnValues) == 0 {
 		return fmt.Errorf("expected at least one return value of type string, nil or error")
@@ -764,7 +743,7 @@ func (c *Client) CallService(namespace string, args []interface{}, replies ...in
 		if err != nil {
 			return err
 		}
-		vReplies.Elem().Set(val)
+		vReplies.Elem().Set(reflect.Indirect(val))
 	}
 	switch e := returnValues[len(returnValues)-1].(type) {
 	case string:
