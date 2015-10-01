@@ -169,7 +169,7 @@ const (
 type URI string
 
 // An ID is a unique, non-negative number. Different uses may have additional restrictions.
-type ID uint
+type ID uint64
 
 // [HELLO, Realm|uri, Details|dict]
 type Hello struct {
