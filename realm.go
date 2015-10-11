@@ -24,7 +24,7 @@ type Realm struct {
 	Authenticators   map[string]Authenticator
 	// DefaultAuth      func(details map[string]interface{}) (map[string]interface{}, error)
 	AuthTimeout time.Duration
-	clients     map[ID]Session
+	clients     map[ID]*Session
 	localClient
 }
 
@@ -34,7 +34,7 @@ type localClient struct {
 
 func (r *Realm) getPeer(details map[string]interface{}) (Peer, error) {
 	peerA, peerB := localPipe()
-	sess := Session{Peer: peerA, Id: NewID(), Details: details, kill: make(chan URI, 1)}
+	sess := &Session{Peer: peerA, Id: NewID(), Details: details, kill: make(chan URI, 1)}
 	if details == nil {
 		details = make(map[string]interface{})
 	}
@@ -51,7 +51,7 @@ func (r Realm) Close() {
 }
 
 func (r *Realm) init() {
-	r.clients = make(map[ID]Session)
+	r.clients = make(map[ID]*Session)
 	p, _ := r.getPeer(nil)
 	r.localClient.Client = NewClient(p)
 	if r.Broker == nil {
@@ -82,7 +82,7 @@ func (l *localClient) onLeave(session ID) {
 	l.Publish("wamp.session.on_leave", []interface{}{session}, nil)
 }
 
-func (r *Realm) handleSession(sess Session) {
+func (r *Realm) handleSession(sess *Session) {
 	r.clients[sess.Id] = sess
 	r.onJoin(sess.Details)
 	defer func() {

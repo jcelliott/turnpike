@@ -24,11 +24,11 @@ func (t *testPeer) Send(msg Message) error {
 func (t *testPeer) Close() error            { return nil }
 func (t *testPeer) Receive() <-chan Message { return make(chan Message) }
 
-func getTestSession() Session {
-	return Session{Peer: &testPeer{}, Id: NewID()}
+func getTestSession() *Session {
+	return &Session{Peer: &testPeer{}, Id: NewID()}
 }
 
-func getTestMessage(sess Session) Message {
+func getTestMessage(sess *Session) Message {
 	return sess.Peer.(*testPeer).Message
 }
 

@@ -6,7 +6,7 @@ package turnpike
 // Authorize takes the session and the message (request), and returns true if
 // the request is authorized, otherwise false.
 type Authorizer interface {
-	Authorize(session Session, msg Message) (bool, error)
+	Authorize(session *Session, msg Message) (bool, error)
 }
 
 // DefaultAuthorizer always returns authorized.
@@ -18,6 +18,6 @@ func NewDefaultAuthorizer() Authorizer {
 	return &defaultAuthorizer{}
 }
 
-func (da *defaultAuthorizer) Authorize(session Session, msg Message) (bool, error) {
+func (da *defaultAuthorizer) Authorize(session *Session, msg Message) (bool, error) {
 	return true, nil
 }
