@@ -10,11 +10,25 @@ type Session struct {
 	Id      ID
 	Details map[string]interface{}
 
-	kill chan URI
+	registrations map[ID]bool
+	kill          chan URI
 }
 
-func (s Session) String() string {
+func (s *Session) String() string {
 	return fmt.Sprintf("%d", s.Id)
+}
+
+func (s *Session) addRegistration(reg ID) {
+	if s.registrations == nil {
+		s.registrations = make(map[ID]bool)
+	}
+	s.registrations[reg] = true
+}
+
+func (s *Session) removeRegistration(reg ID) {
+	if s.registrations != nil {
+		delete(s.registrations, reg)
+	}
 }
 
 // localPipe creates two linked sessions. Messages sent to one will

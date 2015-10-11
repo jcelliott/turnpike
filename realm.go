@@ -87,6 +87,7 @@ func (r *Realm) handleSession(sess Session) {
 	r.onJoin(sess.Details)
 	defer func() {
 		delete(r.clients, sess.Id)
+		r.Dealer.RemoveSession(sess)
 		r.onLeave(sess.Id)
 	}()
 	c := sess.Receive()
@@ -140,19 +141,19 @@ func (r *Realm) handleSession(sess Session) {
 
 		// Dealer messages
 		case *Register:
-			r.Dealer.Register(sess.Peer, msg)
+			r.Dealer.Register(sess, msg)
 		case *Unregister:
-			r.Dealer.Unregister(sess.Peer, msg)
+			r.Dealer.Unregister(sess, msg)
 		case *Call:
-			r.Dealer.Call(sess.Peer, msg)
+			r.Dealer.Call(sess, msg)
 		case *Yield:
-			r.Dealer.Yield(sess.Peer, msg)
+			r.Dealer.Yield(sess, msg)
 
 		// Error messages
 		case *Error:
 			if msg.Type == INVOCATION {
 				// the only type of ERROR message the router should receive
-				r.Dealer.Error(sess.Peer, msg)
+				r.Dealer.Error(sess, msg)
 			} else {
 				log.Printf("invalid ERROR message received: %v", msg)
 			}
