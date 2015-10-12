@@ -12,6 +12,8 @@ type Dealer interface {
 	Yield(Sender, *Yield)
 	// Handle an ERROR message from an invocation
 	Error(Sender, *Error)
+	// Remove a callee's registrations
+	RemovePeer(Sender)
 }
 
 type remoteProcedure struct {
@@ -30,6 +32,8 @@ type defaultDealer struct {
 	calls map[ID]Sender
 	// link the invocation ID to the call ID
 	invocations map[ID]ID
+	// keep track of callee's registrations
+	callees map[Sender]map[ID]bool
 }
 
 // NewDefaultDealer returns the default turnpike dealer implementation
@@ -39,6 +43,7 @@ func NewDefaultDealer() Dealer {
 		registrations: make(map[URI]ID),
 		calls:         make(map[ID]Sender),
 		invocations:   make(map[ID]ID),
+		callees:       make(map[Sender]map[ID]bool),
 	}
 }
 
@@ -56,6 +61,7 @@ func (d *defaultDealer) Register(callee Sender, msg *Register) {
 	reg := NewID()
 	d.procedures[reg] = remoteProcedure{callee, msg.Procedure}
 	d.registrations[msg.Procedure] = reg
+	d.addCalleeRegistration(callee, reg)
 	log.Printf("registered procedure %v [%v]", reg, msg.Procedure)
 	callee.Send(&Registered{
 		Request:      msg.Request,
@@ -76,6 +82,7 @@ func (d *defaultDealer) Unregister(callee Sender, msg *Unregister) {
 	} else {
 		delete(d.registrations, procedure.Procedure)
 		delete(d.procedures, msg.Registration)
+		d.removeCalleeRegistration(callee, msg.Registration)
 		log.Printf("unregistered procedure %v [%v]", procedure.Procedure, msg.Registration)
 		callee.Send(&Unregistered{
 			Request: msg.Request,
@@ -164,5 +171,32 @@ func (d *defaultDealer) Error(peer Sender, msg *Error) {
 			})
 			log.Printf("returned ERROR %v to caller as ERROR %v", msg.Request, callID)
 		}
+	}
+}
+
+func (d *defaultDealer) RemovePeer(callee Sender) {
+	for reg := range d.callees[callee] {
+		if procedure, ok := d.procedures[reg]; ok {
+			delete(d.registrations, procedure.Procedure)
+			delete(d.procedures, reg)
+		}
+		d.removeCalleeRegistration(callee, reg)
+	}
+}
+
+func (d *defaultDealer) addCalleeRegistration(callee Sender, reg ID) {
+	if _, ok := d.callees[callee]; !ok {
+		d.callees[callee] = make(map[ID]bool)
+	}
+	d.callees[callee][reg] = true
+}
+
+func (d *defaultDealer) removeCalleeRegistration(callee Sender, reg ID) {
+	if _, ok := d.callees[callee]; !ok {
+		return
+	}
+	delete(d.callees[callee], reg)
+	if len(d.callees[callee]) == 0 {
+		delete(d.callees, callee)
 	}
 }
