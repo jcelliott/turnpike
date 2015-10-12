@@ -116,3 +116,30 @@ func TestCall(t *testing.T) {
 		})
 	})
 }
+
+func TestRemovePeer(t *testing.T) {
+	Convey("With a procedure registered", t, func() {
+		dealer := NewDefaultDealer().(*defaultDealer)
+		callee := &TestSender{}
+		testProcedure := URI("turnpike.test.endpoint")
+		msg := &Register{Request: 123, Procedure: testProcedure}
+		dealer.Register(callee, msg)
+		reg := callee.received.(*Registered).Registration
+		So(dealer.registrations, ShouldContainKey, testProcedure)
+		So(dealer.procedures, ShouldContainKey, reg)
+		So(dealer.callees[callee], ShouldContainKey, reg)
+
+		Convey("Calling RemoveSession should remove the registration", func() {
+			dealer.RemovePeer(callee)
+			So(dealer.registrations, ShouldNotContainKey, testProcedure)
+			So(dealer.procedures, ShouldNotContainKey, reg)
+			So(dealer.callees[callee], ShouldNotContainKey, reg)
+
+			Convey("And registering the endpoint again should succeed", func() {
+				msg.Request = 124
+				dealer.Register(callee, msg)
+				So(callee.received.MessageType(), ShouldEqual, REGISTERED)
+			})
+		})
+	})
+}

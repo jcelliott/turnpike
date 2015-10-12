@@ -87,6 +87,7 @@ func (r *Realm) handleSession(sess Session) {
 	r.onJoin(sess.Details)
 	defer func() {
 		delete(r.clients, sess.Id)
+		r.Dealer.RemovePeer(sess.Peer)
 		r.onLeave(sess.Id)
 	}()
 	c := sess.Receive()
