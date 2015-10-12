@@ -3,17 +3,15 @@ package turnpike
 // A Dealer routes and manages RPC calls to callees.
 type Dealer interface {
 	// Register a procedure on an endpoint
-	Register(Session, *Register)
+	Register(Sender, *Register)
 	// Unregister a procedure on an endpoint
-	Unregister(Session, *Unregister)
+	Unregister(Sender, *Unregister)
 	// Call a procedure on an endpoint
-	Call(Session, *Call)
+	Call(Sender, *Call)
 	// Return the result of a procedure call
-	Yield(Session, *Yield)
+	Yield(Sender, *Yield)
 	// Handle an ERROR message from an invocation
-	Error(Session, *Error)
-	// Remove all registrations for given session
-	RemoveSession(Session)
+	Error(Sender, *Error)
 }
 
 type remoteProcedure struct {
@@ -44,7 +42,7 @@ func NewDefaultDealer() Dealer {
 	}
 }
 
-func (d *defaultDealer) Register(callee Session, msg *Register) {
+func (d *defaultDealer) Register(callee Sender, msg *Register) {
 	if id, ok := d.registrations[msg.Procedure]; ok {
 		log.Println("error: procedure already exists:", msg.Procedure, id)
 		callee.Send(&Error{
@@ -58,7 +56,6 @@ func (d *defaultDealer) Register(callee Session, msg *Register) {
 	reg := NewID()
 	d.procedures[reg] = remoteProcedure{callee, msg.Procedure}
 	d.registrations[msg.Procedure] = reg
-	callee.addRegistration(reg)
 	log.Printf("registered procedure %v [%v]", reg, msg.Procedure)
 	callee.Send(&Registered{
 		Request:      msg.Request,
@@ -66,7 +63,7 @@ func (d *defaultDealer) Register(callee Session, msg *Register) {
 	})
 }
 
-func (d *defaultDealer) Unregister(callee Session, msg *Unregister) {
+func (d *defaultDealer) Unregister(callee Sender, msg *Unregister) {
 	if procedure, ok := d.procedures[msg.Registration]; !ok {
 		// the registration doesn't exist
 		log.Println("error: no such registration:", msg.Registration)
@@ -79,7 +76,6 @@ func (d *defaultDealer) Unregister(callee Session, msg *Unregister) {
 	} else {
 		delete(d.registrations, procedure.Procedure)
 		delete(d.procedures, msg.Registration)
-		callee.removeRegistration(msg.Registration)
 		log.Printf("unregistered procedure %v [%v]", procedure.Procedure, msg.Registration)
 		callee.Send(&Unregistered{
 			Request: msg.Request,
@@ -87,17 +83,7 @@ func (d *defaultDealer) Unregister(callee Session, msg *Unregister) {
 	}
 }
 
-func (d *defaultDealer) RemoveSession(session Session) {
-	for reg := range session.registrations {
-		if procedure, ok := d.procedures[reg]; ok {
-			delete(d.registrations, procedure.Procedure)
-			delete(d.procedures, reg)
-		}
-		delete(session.registrations, reg)
-	}
-}
-
-func (d *defaultDealer) Call(caller Session, msg *Call) {
+func (d *defaultDealer) Call(caller Sender, msg *Call) {
 	if reg, ok := d.registrations[msg.Procedure]; !ok {
 		caller.Send(&Error{
 			Type:    msg.MessageType(),
@@ -135,7 +121,7 @@ func (d *defaultDealer) Call(caller Session, msg *Call) {
 	}
 }
 
-func (d *defaultDealer) Yield(callee Session, msg *Yield) {
+func (d *defaultDealer) Yield(callee Sender, msg *Yield) {
 	if callID, ok := d.invocations[msg.Request]; !ok {
 		// WAMP spec doesn't allow sending an error in response to a YIELD message
 		log.Println("received YIELD message with invalid invocation request ID:", msg.Request)
@@ -159,7 +145,7 @@ func (d *defaultDealer) Yield(callee Session, msg *Yield) {
 	}
 }
 
-func (d *defaultDealer) Error(peer Session, msg *Error) {
+func (d *defaultDealer) Error(peer Sender, msg *Error) {
 	if callID, ok := d.invocations[msg.Request]; !ok {
 		log.Println("received ERROR (INVOCATION) message with invalid invocation request ID:", msg.Request)
 	} else {
