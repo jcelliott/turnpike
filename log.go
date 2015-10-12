@@ -35,11 +35,6 @@ func Debug() {
 	log = glog.New(os.Stderr, "", logFlags)
 }
 
-// DebugOff changes the log to a noop logger
-func DebugOff() {
-	log = noopLogger{}
-}
-
 // SetLogger allows users to inject their own logger instead of the default one.
 func SetLogger(l Logger) {
 	log = l

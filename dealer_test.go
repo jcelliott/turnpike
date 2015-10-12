@@ -116,22 +116,3 @@ func TestCall(t *testing.T) {
 		})
 	})
 }
-
-func TestRemoveSession(t *testing.T) {
-	Convey("With a procedure registered", t, func() {
-		dealer := NewDefaultDealer().(*defaultDealer)
-		callee := getTestSession()
-		testProcedure := URI("turnpike.test.endpoint")
-		msg := &Register{Request: 123, Procedure: testProcedure}
-		dealer.Register(callee, msg)
-		reg := getTestMessage(callee).(*Registered).Registration
-		So(dealer.registrations, ShouldContainKey, testProcedure)
-		So(callee.registrations, ShouldContainKey, reg)
-
-		Convey("Calling RemoveSession should remove the registration", func() {
-			dealer.RemoveSession(callee)
-			So(dealer.registrations, ShouldNotContainKey, testProcedure)
-			So(callee.registrations, ShouldNotContainKey, reg)
-		})
-	})
-}
