@@ -1,6 +1,8 @@
 package turnpike
 
 import (
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -112,5 +114,218 @@ func TestRemoteCall(t *testing.T) {
 				})
 			})
 		})
+
+		// RegisterService registers in the dealer the set of methods of the
+		// receiver value that satisfy the following conditions:
+		//	- exported method of exported type
+		//	- two arguments, both of exported type
+		//	- at least one return value, of type error
+		// It returns an error if the receiver is not an exported type or has
+		// no suitable methods.
+		// The client accesses each method using a string of the form "type.method",
+		// where type is the receiver's concrete type.
+		Convey("The callee registers an invalid service", func() {
+			Convey("the type is not a struct", func() {
+				s := "invalid service"
+				err := callee.RegisterService(s)
+				Convey("Should result in an error", func() {
+					So(err, ShouldNotBeNil)
+				})
+			})
+			Convey("the type is not exported", func() {
+				s := &struct{}{}
+				err := callee.RegisterService(s)
+				Convey("Should result in an error", func() {
+					So(err, ShouldNotBeNil)
+				})
+			})
+			Convey("no method is exported", func() {
+				s := &noMethodExportedService{}
+				err := callee.RegisterService(s)
+				Convey("Should result in an error", func() {
+					So(err, ShouldNotBeNil)
+				})
+			})
+			Convey("exported method has no return value", func() {
+				s := &noReturnValueService{}
+				err := callee.RegisterService(s)
+				Convey("Should result in an error", func() {
+					So(err, ShouldNotBeNil)
+				})
+			})
+			Convey("exported method has no return value of type error", func() {
+				s := &noReturnValueOfTypeErrorService{}
+				err := callee.RegisterService(s)
+				Convey("Should result in an error", func() {
+					So(err, ShouldNotBeNil)
+				})
+			})
+		})
+
+		Convey("The callee registers a valid service", func() {
+			s := &ValidService{name: "ValidService"}
+			err := callee.RegisterService(s)
+			Convey("and expects no error", func() {
+				So(err, ShouldBeNil)
+
+				Convey("The caller calls the Ping method of the service", func() {
+					var message string
+					err := caller.CallService("ValidService.Ping", nil, &message)
+					Convey("and expects no error", func() {
+						So(err, ShouldBeNil)
+					})
+					Convey("and expects the message to be 'pong'", func() {
+						So(message, ShouldEqual, "pong")
+					})
+				})
+
+				Convey("The caller calls the Echo method of the service", func() {
+					var message string
+					err := caller.CallService("ValidService.Echo", []interface{}{"echo"}, &message)
+					Convey("and expects no error", func() {
+						So(err, ShouldBeNil)
+					})
+					Convey("and expects the message to be 'echo'", func() {
+						So(message, ShouldEqual, "echo")
+					})
+				})
+
+				Convey("The caller calls the Info method of the service", func() {
+					var info *ServiceInfo
+					err := caller.CallService("ValidService.Info", nil, &info)
+					Convey("and expects no error", func() {
+						So(err, ShouldBeNil)
+					})
+					Convey("and expects the info to be &ServiceInfo{ServiceName:'ValidService'}", func() {
+						So(info, ShouldResemble, &ServiceInfo{ServiceName: "ValidService"})
+					})
+				})
+
+				Convey("The caller calls the SetInfo method of the service", func() {
+					info := &ServiceInfo{
+						ServiceName: "NewServiceName",
+					}
+					s.m.Lock()
+					err := caller.CallService("ValidService.SetInfo", []interface{}{info})
+					Convey("and expects no error", func() {
+						So(err, ShouldBeNil)
+					})
+					Convey("and expects the value of s.name to be 'NewServiceName'", func() {
+						s.m.Lock()
+						So(s.name, ShouldEqual, "NewServiceName")
+						s.m.Unlock()
+					})
+				})
+
+				Convey("The caller calls the Error method of the service", func() {
+					err := caller.CallService("ValidService.Error", nil)
+					Convey("and expects an error", func() {
+						So(err, ShouldNotBeNil)
+						So(err.Error(), ShouldEqual, "Error")
+					})
+				})
+
+				Convey("The caller calls the Simple method of the service", func() {
+					var st SimpleType
+					err := caller.CallService("ValidService.SimpleType", nil, &st)
+					Convey("and expects an error", func() {
+						So(err, ShouldBeNil)
+						So(st, ShouldEqual, SimpleType("simple"))
+					})
+				})
+
+				Convey("The caller publishes an event", func() {
+					info := &ServiceInfo{
+						ServiceName: "EventChangedName",
+					}
+					s.m.Lock()
+					err := caller.Publish("ValidService.OnNewInfo", []interface{}{info}, map[string]interface{}{})
+					Convey("and expects no error", func() {
+						So(err, ShouldBeNil)
+					})
+					Convey("and expects the value of s.name to be 'EventChangedName'", func() {
+						s.m.Lock()
+						So(s.name, ShouldEqual, "EventChangedName")
+						s.m.Unlock()
+					})
+				})
+			})
+
+			Convey("The callee unregisters the service", func() {
+				err := callee.UnregisterService("ValidService")
+				Convey("and expects no error", func() {
+					So(err, ShouldBeNil)
+					Convey("The caller calls the Error method of the service", func() {
+						err := caller.CallService("ValidService.Error", nil)
+						Convey("and expects an error", func() {
+							So(err, ShouldNotBeNil)
+						})
+					})
+				})
+			})
+		})
+
+		Convey("The callee unregisters a undefined service", func() {
+			err := callee.Unregister("ServiceIsNotDefined")
+			Convey("and expects an error", func() {
+				So(err, ShouldNotBeNil)
+			})
+		})
 	})
+}
+
+type noMethodExportedService struct{}
+
+func (s *noMethodExportedService) notExported() error { return nil }
+
+type noReturnValueService struct{}
+
+func (s *noReturnValueService) NoReturnValue() {}
+
+type noReturnValueOfTypeErrorService struct{}
+
+func (s *noReturnValueOfTypeErrorService) NoReturnValue() string { return "" }
+
+type SimpleType string
+
+type ValidService struct {
+	name string
+	m    sync.Mutex
+}
+
+func (s *ValidService) Ping() (string, error) {
+	return "pong", nil
+}
+
+func (s *ValidService) Echo(message string) (string, error) {
+	return message, nil
+}
+
+func (s *ValidService) Info() (*ServiceInfo, error) {
+	return &ServiceInfo{
+		ServiceName: s.name,
+	}, nil
+}
+
+func (s *ValidService) OnNewInfo(info *ServiceInfo) {
+	s.name = info.ServiceName
+	s.m.Unlock()
+}
+
+func (s *ValidService) SetInfo(info *ServiceInfo) error {
+	s.name = info.ServiceName
+	s.m.Unlock()
+	return nil
+}
+
+func (s *ValidService) SimpleType() (SimpleType, error) {
+	return SimpleType("simple"), nil
+}
+
+func (s *ValidService) Error() error {
+	return fmt.Errorf("%s", "Error")
+}
+
+type ServiceInfo struct {
+	ServiceName string
 }
