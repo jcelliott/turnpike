@@ -6,19 +6,28 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 )
 
-type TestSender struct {
+type TestPeer struct {
 	received Message
+	sent     Message
 }
 
-func (s *TestSender) Send(msg Message) error { s.received = msg; return nil }
+func (s *TestPeer) Send(msg Message) error {
+	s.received = msg
+	return nil
+}
+
+// TODO: implement me
+func (s *TestPeer) Receive() <-chan Message { return nil }
+func (s *TestPeer) Close() error            { return nil }
 
 func TestSubscribe(t *testing.T) {
 	Convey("Subscribing to a topic", t, func() {
 		broker := NewDefaultBroker().(*defaultBroker)
-		subscriber := &TestSender{}
+		subscriber := &TestPeer{}
+		sess := &Session{Peer: subscriber}
 		testTopic := URI("turnpike.test.topic")
 		msg := &Subscribe{Request: 123, Topic: testTopic}
-		broker.Subscribe(subscriber, msg)
+		broker.Subscribe(sess, msg)
 
 		Convey("The subscriber should have received a SUBSCRIBED message", func() {
 			sub := subscriber.received.(*Subscribed).Subscription
@@ -38,15 +47,16 @@ func TestSubscribe(t *testing.T) {
 
 func TestUnsubscribe(t *testing.T) {
 	broker := NewDefaultBroker().(*defaultBroker)
-	subscriber := &TestSender{}
+	subscriber := &TestPeer{}
 	testTopic := URI("turnpike.test.topic")
 	msg := &Subscribe{Request: 123, Topic: testTopic}
-	broker.Subscribe(subscriber, msg)
+	sess := &Session{Peer: subscriber}
+	broker.Subscribe(sess, msg)
 	sub := subscriber.received.(*Subscribed).Subscription
 
 	Convey("Unsubscribing from a topic", t, func() {
 		msg := &Unsubscribe{Request: 124, Subscription: sub}
-		broker.Unsubscribe(subscriber, msg)
+		broker.Unsubscribe(sess, msg)
 
 		Convey("The peer should have received an UNSUBSCRIBED message", func() {
 			unsub := subscriber.received.(*Unsubscribed).Request

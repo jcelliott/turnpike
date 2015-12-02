@@ -4,11 +4,11 @@ package turnpike
 // from Publishers to Subscribers.
 type Broker interface {
 	// Publishes a message to all Subscribers.
-	Publish(Sender, *Publish)
+	Publish(*Session, *Publish)
 	// Subscribes to messages on a URI.
-	Subscribe(Sender, *Subscribe)
+	Subscribe(*Session, *Subscribe)
 	// Unsubscribes from messages on a URI.
-	Unsubscribe(Sender, *Unsubscribe)
+	Unsubscribe(*Session, *Unsubscribe)
 }
 
 // A super simple broker that matches URIs to Subscribers.
@@ -30,8 +30,9 @@ func NewDefaultBroker() Broker {
 //
 // If msg.Options["acknowledge"] == true, the publisher receives a Published event
 // after the message has been sent to all subscribers.
-func (br *defaultBroker) Publish(pub Sender, msg *Publish) {
-	pubID := NewID()
+func (br *defaultBroker) Publish(sess *Session, msg *Publish) {
+	pub := sess.Peer
+	pubID := sess.NextRequestId()
 	evtTemplate := Event{
 		Publication: pubID,
 		Arguments:   msg.Arguments,
@@ -55,19 +56,19 @@ func (br *defaultBroker) Publish(pub Sender, msg *Publish) {
 }
 
 // Subscribe subscribes the client to the given topic.
-func (br *defaultBroker) Subscribe(sub Sender, msg *Subscribe) {
+func (br *defaultBroker) Subscribe(sess *Session, msg *Subscribe) {
 	if _, ok := br.routes[msg.Topic]; !ok {
 		br.routes[msg.Topic] = make(map[ID]Sender)
 	}
-	id := NewID()
-	br.routes[msg.Topic][id] = sub
+	id := sess.NextRequestId()
+	br.routes[msg.Topic][id] = sess.Peer
 
 	br.subscriptions[id] = msg.Topic
 
-	sub.Send(&Subscribed{Request: msg.Request, Subscription: id})
+	sess.Peer.Send(&Subscribed{Request: msg.Request, Subscription: id})
 }
 
-func (br *defaultBroker) Unsubscribe(sub Sender, msg *Unsubscribe) {
+func (br *defaultBroker) Unsubscribe(sess *Session, msg *Unsubscribe) {
 	topic, ok := br.subscriptions[msg.Subscription]
 	if !ok {
 		err := &Error{
@@ -75,7 +76,7 @@ func (br *defaultBroker) Unsubscribe(sub Sender, msg *Unsubscribe) {
 			Request: msg.Request,
 			Error:   ErrNoSuchSubscription,
 		}
-		sub.Send(err)
+		sess.Peer.Send(err)
 		log.Printf("Error unsubscribing: no such subscription %v", msg.Subscription)
 		return
 	}
@@ -91,5 +92,5 @@ func (br *defaultBroker) Unsubscribe(sub Sender, msg *Unsubscribe) {
 			delete(br.routes, topic)
 		}
 	}
-	sub.Send(&Unsubscribed{Request: msg.Request})
+	sess.Peer.Send(&Unsubscribed{Request: msg.Request})
 }

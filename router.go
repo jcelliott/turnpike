@@ -149,7 +149,7 @@ func (r *defaultRouter) Accept(client Peer) error {
 	// session details
 	welcome.Details["session"] = welcome.Id
 	welcome.Details["realm"] = hello.Realm
-	sess := Session{
+	sess := &Session{
 		Peer:    client,
 		Id:      welcome.Id,
 		Details: welcome.Details,
