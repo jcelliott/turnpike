@@ -2,6 +2,7 @@ package turnpike
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -13,6 +14,7 @@ type websocketPeer struct {
 	messages    chan Message
 	payloadType int
 	closed      bool
+	mutex       sync.Mutex
 }
 
 // NewWebsocketPeer connects to the websocket server at the specified url.
@@ -56,6 +58,8 @@ func (ep *websocketPeer) Send(msg Message) error {
 	if err != nil {
 		return err
 	}
+	ep.mutex.Lock()
+	defer ep.mutex.Unlock()
 	return ep.conn.WriteMessage(ep.payloadType, b)
 }
 func (ep *websocketPeer) Receive() <-chan Message {
