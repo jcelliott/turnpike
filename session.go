@@ -35,8 +35,8 @@ func (s *Session) NextRequestId() ID {
 // appear in the Receive of the other. This is useful for implementing
 // client sessions
 func localPipe() (*localPeer, *localPeer) {
-	aToB := make(chan Message, 10)
-	bToA := make(chan Message, 10)
+	aToB := make(chan Message, 100)
+	bToA := make(chan Message, 100)
 
 	a := &localPeer{
 		incoming: bToA,

@@ -43,7 +43,7 @@ func newWebsocketPeer(url, protocol, origin string, serializer Serializer, paylo
 	}
 	ep := &websocketPeer{
 		conn:        conn,
-		messages:    make(chan Message, 10),
+		messages:    make(chan Message, 100),
 		serializer:  serializer,
 		payloadType: payloadType,
 	}
