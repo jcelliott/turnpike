@@ -1,5 +1,9 @@
 package turnpike
 
+import (
+	"sync"
+)
+
 // A Dealer routes and manages RPC calls to callees.
 type Dealer interface {
 	// Register a procedure on an endpoint
@@ -38,6 +42,10 @@ type defaultDealer struct {
 	// link the invocation ID to the call ID
 	invocations map[*Session]map[ID]rpcRequest
 	// callees map[*Session]map[ID]bool
+
+	// single lock for all invocations; could use RWLock, but in most (all?) cases we want a write lock
+	// TODO: add the lock per session
+	invocationLock sync.Mutex
 }
 
 // NewDefaultDealer returns the default turnpike dealer implementation
@@ -95,6 +103,9 @@ func (d *defaultDealer) Unregister(sess *Session, msg *Unregister) {
 }
 
 func (d *defaultDealer) Call(sess *Session, msg *Call) {
+	d.invocationLock.Lock()
+	defer d.invocationLock.Unlock()
+
 	if rproc, ok := d.procedures[msg.Procedure]; !ok {
 		sess.Peer.Send(&Error{
 			Type:    msg.MessageType(),
@@ -125,6 +136,9 @@ func (d *defaultDealer) Call(sess *Session, msg *Call) {
 }
 
 func (d *defaultDealer) Yield(sess *Session, msg *Yield) {
+	d.invocationLock.Lock()
+	defer d.invocationLock.Unlock()
+
 	if d.invocations[sess] == nil {
 		log.Println("received YIELD message from unknown session:", sess.Id)
 		return
@@ -133,10 +147,11 @@ func (d *defaultDealer) Yield(sess *Session, msg *Yield) {
 		// WAMP spec doesn't allow sending an error in response to a YIELD message
 		log.Println("received YIELD message with invalid invocation request ID:", msg.Request)
 	} else {
-		// TODO: delete old keys; could do here, but should probably lock the map
+		// delete old keys
 		delete(d.invocations[sess], msg.Request)
+
 		// return the result to the caller
-		call.caller.Send(&Result{
+		go call.caller.Send(&Result{
 			Request:     call.requestId,
 			Details:     map[string]interface{}{},
 			Arguments:   msg.Arguments,
@@ -144,19 +159,27 @@ func (d *defaultDealer) Yield(sess *Session, msg *Yield) {
 		})
 		log.Printf("returned YIELD %v to caller as RESULT %v", msg.Request, call.requestId)
 	}
+
+	if len(d.invocations[sess]) == 0 {
+		delete(d.invocations, sess)
+	}
 }
 
 func (d *defaultDealer) Error(sess *Session, msg *Error) {
+	d.invocationLock.Lock()
+	defer d.invocationLock.Unlock()
+
 	if d.invocations[sess] == nil {
-		log.Println("received YIELD message from unknown session:", sess.Id)
+		log.Println("received ERROR message from unknown session:", sess.Id)
 		return
 	}
 	if call, ok := d.invocations[sess][msg.Request]; !ok {
 		log.Println("received ERROR (INVOCATION) message with invalid invocation request ID:", msg.Request)
 	} else {
 		delete(d.invocations[sess], msg.Request)
+
 		// return an error to the caller
-		call.caller.Peer.Send(&Error{
+		go call.caller.Peer.Send(&Error{
 			Type:        CALL,
 			Request:     call.requestId,
 			Details:     make(map[string]interface{}),
@@ -164,6 +187,10 @@ func (d *defaultDealer) Error(sess *Session, msg *Error) {
 			ArgumentsKw: msg.ArgumentsKw,
 		})
 		log.Printf("returned ERROR %v to caller as ERROR %v", msg.Request, call.requestId)
+	}
+
+	if len(d.invocations[sess]) == 0 {
+		delete(d.invocations, sess)
 	}
 }
 
