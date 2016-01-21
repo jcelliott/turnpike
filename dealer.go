@@ -182,6 +182,7 @@ func (d *defaultDealer) Error(sess *Session, msg *Error) {
 		go call.caller.Peer.Send(&Error{
 			Type:        CALL,
 			Request:     call.requestId,
+			Error:       msg.Error,
 			Details:     make(map[string]interface{}),
 			Arguments:   msg.Arguments,
 			ArgumentsKw: msg.ArgumentsKw,
