@@ -584,6 +584,15 @@ func (c *Client) Publish(topic string, options map[string]interface{}, args []in
 	})
 }
 
+type RPCError struct {
+	ErrorMessage *Error
+	Procedure    string
+}
+
+func (rpc RPCError) Error() string {
+	return fmt.Sprintf("error calling procedure '%v': %v: %v: %v", rpc.Procedure, rpc.ErrorMessage.Error, rpc.ErrorMessage.Arguments, rpc.ErrorMessage.ArgumentsKw)
+}
+
 // Call calls a procedure given a URI.
 func (c *Client) Call(procedure string, options map[string]interface{}, args []interface{}, kwargs map[string]interface{}) (*Result, error) {
 	id := NewID()
@@ -606,7 +615,7 @@ func (c *Client) Call(procedure string, options map[string]interface{}, args []i
 	if msg, err = c.waitOnListener(id); err != nil {
 		return nil, err
 	} else if e, ok := msg.(*Error); ok {
-		return nil, fmt.Errorf("error calling procedure '%v': %v", procedure, e.Error)
+		return nil, RPCError{e, procedure}
 	} else if result, ok := msg.(*Result); !ok {
 		return nil, fmt.Errorf(formatUnexpectedMessage(msg, RESULT))
 	} else {
