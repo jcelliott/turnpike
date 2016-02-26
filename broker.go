@@ -1,5 +1,7 @@
 package turnpike
 
+import _ "log"
+
 // Broker is the interface implemented by an object that handles routing EVENTS
 // from Publishers to Subscribers.
 type Broker interface {
@@ -38,12 +40,18 @@ func (br *defaultBroker) Publish(pub Sender, msg *Publish) {
 		ArgumentsKw: msg.ArgumentsKw,
 		Details:     make(map[string]interface{}),
 	}
+
+	excludePublisher := true
+	if exclude, ok := msg.Options["exclude_me"].(bool); ok {
+		excludePublisher = exclude
+	}
+
 	for id, sub := range br.routes[msg.Topic] {
 		// shallow-copy the template
 		event := evtTemplate
 		event.Subscription = id
 		// don't send event to publisher
-		if sub != pub {
+		if (excludePublisher && sub != pub) || !excludePublisher {
 			sub.Send(&event)
 		}
 	}
