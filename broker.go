@@ -1,7 +1,5 @@
 package turnpike
 
-import _ "log"
-
 // Broker is the interface implemented by an object that handles routing EVENTS
 // from Publishers to Subscribers.
 type Broker interface {
