@@ -2,6 +2,7 @@ package turnpike
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -26,6 +27,7 @@ type Realm struct {
 	AuthTimeout time.Duration
 	clients     map[ID]Session
 	localClient
+	sync.Mutex
 }
 
 type localClient struct {
@@ -83,9 +85,13 @@ func (l *localClient) onLeave(session ID) {
 }
 
 func (r *Realm) handleSession(sess Session) {
+	r.Lock()
+	defer r.Unlock()
 	r.clients[sess.Id] = sess
 	r.onJoin(sess.Details)
 	defer func() {
+		r.Lock()
+		defer r.Unlock()
 		delete(r.clients, sess.Id)
 		r.Dealer.RemovePeer(sess.Peer)
 		r.onLeave(sess.Id)
