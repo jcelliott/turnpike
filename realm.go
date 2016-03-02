@@ -2,6 +2,7 @@ package turnpike
 
 import (
 	"fmt"
+	_ "log"
 	"sync"
 	"time"
 )
@@ -109,7 +110,7 @@ func (r *Realm) handleSession(sess Session) {
 				return
 			}
 		case reason := <-sess.kill:
-			logErr(sess.Send(&Goodbye{Reason: reason, Details: make(map[string]interface{})}))
+			logErr(sess.Send(&Goodbye{Reason: reason, Details: make(map[string]interface{}), Request: sess.Id}))
 			log.Printf("kill session %s: %v", sess, reason)
 			// TODO: wait for client Goodbye?
 			return
@@ -133,7 +134,7 @@ func (r *Realm) handleSession(sess Session) {
 
 		switch msg := msg.(type) {
 		case *Goodbye:
-			logErr(sess.Send(&Goodbye{Reason: ErrGoodbyeAndOut, Details: make(map[string]interface{})}))
+			logErr(sess.Send(&Goodbye{Reason: ErrGoodbyeAndOut, Details: make(map[string]interface{}), Request: sess.Id}))
 			log.Printf("[%s] leaving: %v", sess, msg.Reason)
 			return
 

@@ -2,6 +2,8 @@ package turnpike
 
 import (
 	"fmt"
+	_ "log"
+	"strconv"
 	"time"
 )
 
@@ -164,6 +166,8 @@ func formatUnexpectedMessage(msg Message, expected MessageType) string {
 	case *Goodbye:
 		s += ": " + string(m.Reason)
 		s += formatUnknownMap(m.Details)
+		s += strconv.FormatUint(uint64(m.Request), 10)
+
 		return s
 	}
 	return s
