@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"gopkg.in/jcelliott/turnpike.v2"
+	"github.com/awakenetworks/turnpike"
 )
 
 var client *turnpike.Client

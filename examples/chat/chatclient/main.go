@@ -4,7 +4,7 @@ import (
 	"log"
 	"os"
 
-	"gopkg.in/jcelliott/turnpike.v2"
+	"github.com/awakenetworks/turnpike"
 )
 
 const (
