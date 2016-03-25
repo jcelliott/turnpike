@@ -3,6 +3,8 @@ package turnpike
 import (
 	"fmt"
 	"time"
+
+	"github.com/streamrail/concurrent-map"
 )
 
 const (
@@ -24,7 +26,7 @@ type Realm struct {
 	Authenticators   map[string]Authenticator
 	// DefaultAuth      func(details map[string]interface{}) (map[string]interface{}, error)
 	AuthTimeout time.Duration
-	clients     map[ID]*Session
+	clients     cmap.ConcurrentMap
 	localClient
 }
 
@@ -45,13 +47,18 @@ func (r *Realm) getPeer(details map[string]interface{}) (Peer, error) {
 
 // Close disconnects all clients after sending a goodbye message
 func (r Realm) Close() {
-	for _, client := range r.clients {
-		client.kill <- ErrSystemShutdown
+	iter := r.clients.Iter()
+	for client := range iter {
+		sess, isSession := client.Val.(*Session)
+		if !isSession {
+			continue
+		}
+		sess.kill <- ErrSystemShutdown
 	}
 }
 
 func (r *Realm) init() {
-	r.clients = make(map[ID]*Session)
+	r.clients = cmap.New()
 	p, _ := r.getPeer(nil)
 	r.localClient.Client = NewClient(p)
 	if r.Broker == nil {
@@ -83,10 +90,10 @@ func (l *localClient) onLeave(session ID) {
 }
 
 func (r *Realm) handleSession(sess *Session) {
-	r.clients[sess.Id] = sess
+	r.clients.Set(string(sess.Id), sess)
 	r.onJoin(sess.Details)
 	defer func() {
-		delete(r.clients, sess.Id)
+		r.clients.Remove(string(sess.Id))
 		r.Dealer.RemoveSession(sess)
 		r.onLeave(sess.Id)
 	}()
@@ -255,9 +262,9 @@ func addAuthMethod(details map[string]interface{}, method string) map[string]int
 }
 
 // r := Realm{
-// 	Authenticators: map[string]turnpike.Authenticator{
-// 		"wampcra": turnpike.NewCRAAuthenticatorFactoryFactory(mySecret),
-// 		"ticket": turnpike.NewTicketAuthenticator(myTicket),
+// 	Authenticators: map[string]gowamp.Authenticator{
+// 		"wampcra": gowamp.NewCRAAuthenticatorFactoryFactory(mySecret),
+// 		"ticket": gowamp.NewTicketAuthenticator(myTicket),
 // 		"asdfasdf": myAsdfAuthenticator,
 // 	},
 // 	BasicAuthenticators: map[string]turnpike.BasicAuthenticator{

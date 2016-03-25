@@ -2,6 +2,7 @@ package turnpike
 
 import (
 	"testing"
+	"time"
 
 	. "github.com/smartystreets/goconvey/convey"
 )
@@ -101,7 +102,11 @@ func TestCall(t *testing.T) {
 					msg := &Yield{Request: inv.Request}
 					dealer.Yield(sess, msg)
 
+					// give it some time to propagate
+					time.Sleep(time.Millisecond)
+
 					Convey("The caller should have received a RESULT message", func() {
+						So(caller.received, ShouldNotBeNil)
 						So(caller.received.MessageType(), ShouldEqual, RESULT)
 						So(caller.received.(*Result).Request, ShouldEqual, 125)
 					})
@@ -111,7 +116,11 @@ func TestCall(t *testing.T) {
 					msg := &Error{Request: inv.Request}
 					dealer.Error(sess, msg)
 
+					// give it some time to propagate
+					time.Sleep(time.Millisecond)
+
 					Convey("The caller should have received an ERROR message", func() {
+						So(caller.received, ShouldNotBeNil)
 						So(caller.received.MessageType(), ShouldEqual, ERROR)
 						So(caller.received.(*Error).Request, ShouldEqual, 125)
 					})
