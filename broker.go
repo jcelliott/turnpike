@@ -39,12 +39,18 @@ func (br *defaultBroker) Publish(sess *Session, msg *Publish) {
 		ArgumentsKw: msg.ArgumentsKw,
 		Details:     make(map[string]interface{}),
 	}
+
+	excludePublisher := true
+	if exclude, ok := msg.Options["exclude_me"].(bool); ok {
+		excludePublisher = exclude
+	}
+
 	for id, sub := range br.routes[msg.Topic] {
 		// shallow-copy the template
 		event := evtTemplate
 		event.Subscription = id
 		// don't send event to publisher
-		if sub != pub {
+		if sub != pub || !excludePublisher {
 			sub.Send(&event)
 		}
 	}
