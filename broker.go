@@ -46,10 +46,15 @@ func (br *defaultBroker) Publish(pub *Session, msg *Publish) {
 		Details:     make(map[string]interface{}),
 	}
 
+	excludePublisher := true
+	if exclude, ok := msg.Options["exclude_me"].(bool); ok {
+		excludePublisher = exclude
+	}
+
 	br.lock.RLock()
 	for id, sub := range br.routes[msg.Topic] {
 		// don't send event to publisher
-		if sub == pub {
+		if sub == pub && excludePublisher {
 			continue
 		}
 
