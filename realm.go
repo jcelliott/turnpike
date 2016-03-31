@@ -2,6 +2,8 @@ package turnpike
 
 import (
 	"fmt"
+	_ "log"
+	"sync"
 	"time"
 )
 
@@ -26,6 +28,7 @@ type Realm struct {
 	AuthTimeout time.Duration
 	clients     map[ID]Session
 	localClient
+	sync.Mutex
 }
 
 type localClient struct {
@@ -83,9 +86,13 @@ func (l *localClient) onLeave(session ID) {
 }
 
 func (r *Realm) handleSession(sess Session) {
+	r.Lock()
+	defer r.Unlock()
 	r.clients[sess.Id] = sess
 	r.onJoin(sess.Details)
 	defer func() {
+		r.Lock()
+		defer r.Unlock()
 		delete(r.clients, sess.Id)
 		r.Dealer.RemovePeer(sess.Peer)
 		r.onLeave(sess.Id)
@@ -103,7 +110,7 @@ func (r *Realm) handleSession(sess Session) {
 				return
 			}
 		case reason := <-sess.kill:
-			logErr(sess.Send(&Goodbye{Reason: reason, Details: make(map[string]interface{})}))
+			logErr(sess.Send(&Goodbye{Reason: reason, Details: make(map[string]interface{}), Request: sess.Id}))
 			log.Printf("kill session %s: %v", sess, reason)
 			// TODO: wait for client Goodbye?
 			return
@@ -127,7 +134,7 @@ func (r *Realm) handleSession(sess Session) {
 
 		switch msg := msg.(type) {
 		case *Goodbye:
-			logErr(sess.Send(&Goodbye{Reason: ErrGoodbyeAndOut, Details: make(map[string]interface{})}))
+			logErr(sess.Send(&Goodbye{Reason: ErrGoodbyeAndOut, Details: make(map[string]interface{}), Request: sess.Id}))
 			log.Printf("[%s] leaving: %v", sess, msg.Reason)
 			return
 

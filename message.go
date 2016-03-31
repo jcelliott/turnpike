@@ -224,6 +224,7 @@ func (msg *Authenticate) MessageType() MessageType {
 // [GOODBYE, Details|dict, Reason|uri]
 type Goodbye struct {
 	Details map[string]interface{}
+	Request ID
 	Reason  URI
 }
 
