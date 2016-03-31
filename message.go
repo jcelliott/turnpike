@@ -165,7 +165,7 @@ const (
 
 // URIs are dot-separated identifiers, where each component *should* only contain letters, numbers or underscores.
 //
-// See the documentation for specifics: https://github.com/tavendo/WAMP/blob/master/spec/basic.md#uris
+// See the documentation for specifics: https://github.com/wamp-proto/wamp-proto/blob/master/rfc/text/basic/bp_identifiers.md#uris-uris
 type URI string
 
 // An ID is a unique, non-negative number. Different uses may have additional restrictions.

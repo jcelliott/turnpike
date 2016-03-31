@@ -1,6 +1,7 @@
 package turnpike
 
 import (
+	"crypto/tls"
 	"fmt"
 	"sync"
 	"time"
@@ -18,24 +19,25 @@ type websocketPeer struct {
 }
 
 // NewWebsocketPeer connects to the websocket server at the specified url.
-func NewWebsocketPeer(serialization Serialization, url, origin string) (Peer, error) {
+func NewWebsocketPeer(serialization Serialization, url, origin string, tlscfg *tls.Config) (Peer, error) {
 	switch serialization {
 	case JSON:
 		return newWebsocketPeer(url, jsonWebsocketProtocol, origin,
-			new(JSONSerializer), websocket.TextMessage,
+			new(JSONSerializer), websocket.TextMessage, tlscfg,
 		)
 	case MSGPACK:
 		return newWebsocketPeer(url, msgpackWebsocketProtocol, origin,
-			new(MessagePackSerializer), websocket.BinaryMessage,
+			new(MessagePackSerializer), websocket.BinaryMessage, tlscfg,
 		)
 	default:
 		return nil, fmt.Errorf("Unsupported serialization: %v", serialization)
 	}
 }
 
-func newWebsocketPeer(url, protocol, origin string, serializer Serializer, payloadType int) (Peer, error) {
+func newWebsocketPeer(url, protocol, origin string, serializer Serializer, payloadType int, tlscfg *tls.Config) (Peer, error) {
 	dialer := websocket.Dialer{
-		Subprotocols: []string{protocol},
+		Subprotocols:    []string{protocol},
+		TLSClientConfig: tlscfg,
 	}
 	conn, _, err := dialer.Dial(url, nil)
 	if err != nil {
