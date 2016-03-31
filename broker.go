@@ -1,5 +1,9 @@
 package turnpike
 
+import (
+	"sync"
+)
+
 // Broker is the interface implemented by an object that handles routing EVENTS
 // from Publishers to Subscribers.
 type Broker interface {
@@ -15,6 +19,8 @@ type Broker interface {
 type defaultBroker struct {
 	routes        map[URI]map[ID]Sender
 	subscriptions map[ID]URI
+
+	sync.RWMutex
 }
 
 // NewDefaultBroker initializes and returns a simple broker that matches URIs to
@@ -31,6 +37,9 @@ func NewDefaultBroker() Broker {
 // If msg.Options["acknowledge"] == true, the publisher receives a Published event
 // after the message has been sent to all subscribers.
 func (br *defaultBroker) Publish(sess *Session, msg *Publish) {
+	br.RLock()
+	defer br.RUnlock()
+
 	pub := sess.Peer
 	pubID := sess.NextRequestId()
 	evtTemplate := Event{
@@ -63,6 +72,9 @@ func (br *defaultBroker) Publish(sess *Session, msg *Publish) {
 
 // Subscribe subscribes the client to the given topic.
 func (br *defaultBroker) Subscribe(sess *Session, msg *Subscribe) {
+	br.Lock()
+	defer br.Unlock()
+
 	if _, ok := br.routes[msg.Topic]; !ok {
 		br.routes[msg.Topic] = make(map[ID]Sender)
 	}
@@ -75,6 +87,9 @@ func (br *defaultBroker) Subscribe(sess *Session, msg *Subscribe) {
 }
 
 func (br *defaultBroker) Unsubscribe(sess *Session, msg *Unsubscribe) {
+	br.Lock()
+	defer br.Unlock()
+
 	topic, ok := br.subscriptions[msg.Subscription]
 	if !ok {
 		err := &Error{

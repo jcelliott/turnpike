@@ -46,6 +46,8 @@ type defaultDealer struct {
 	// single lock for all invocations; could use RWLock, but in most (all?) cases we want a write lock
 	// TODO: add the lock per session
 	invocationLock sync.Mutex
+
+	sync.RWMutex
 }
 
 // NewDefaultDealer returns the default turnpike dealer implementation
@@ -58,6 +60,9 @@ func NewDefaultDealer() Dealer {
 }
 
 func (d *defaultDealer) Register(sess *Session, msg *Register) {
+	d.Lock()
+	defer d.Unlock()
+
 	if id, ok := d.procedures[msg.Procedure]; ok {
 		log.Println("error: procedure already exists:", msg.Procedure, id)
 		sess.Peer.Send(&Error{
@@ -82,6 +87,9 @@ func (d *defaultDealer) Register(sess *Session, msg *Register) {
 }
 
 func (d *defaultDealer) Unregister(sess *Session, msg *Unregister) {
+	d.Lock()
+	defer d.Unlock()
+
 	if procedure, ok := d.registrations[msg.Registration]; !ok {
 		// the registration doesn't exist
 		log.Println("error: no such registration:", msg.Registration)
@@ -103,6 +111,9 @@ func (d *defaultDealer) Unregister(sess *Session, msg *Unregister) {
 }
 
 func (d *defaultDealer) Call(sess *Session, msg *Call) {
+	d.Lock()
+	defer d.Unlock()
+
 	d.invocationLock.Lock()
 	defer d.invocationLock.Unlock()
 
@@ -136,6 +147,9 @@ func (d *defaultDealer) Call(sess *Session, msg *Call) {
 }
 
 func (d *defaultDealer) Yield(sess *Session, msg *Yield) {
+	d.Lock()
+	defer d.Unlock()
+
 	d.invocationLock.Lock()
 	defer d.invocationLock.Unlock()
 

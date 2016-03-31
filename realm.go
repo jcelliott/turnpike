@@ -2,6 +2,7 @@ package turnpike
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/streamrail/concurrent-map"
@@ -16,22 +17,25 @@ const (
 // Clients that have connected to a WAMP router are joined to a realm and all
 // message delivery is handled by the realm.
 type Realm struct {
-	_   string
-	URI URI
-	Broker
-	Dealer
-	Authorizer
-	Interceptor
+	_                string
+	URI              URI
+	Broker           Broker
+	Dealer           Dealer
+	Authorizer       Authorizer
+	Interceptor      Interceptor
 	CRAuthenticators map[string]CRAuthenticator
 	Authenticators   map[string]Authenticator
 	// DefaultAuth      func(details map[string]interface{}) (map[string]interface{}, error)
 	AuthTimeout time.Duration
 	clients     cmap.ConcurrentMap
-	localClient
+	localClient *localClient
+
+	lock sync.RWMutex
 }
 
 type localClient struct {
 	*Client
+	sync.Mutex
 }
 
 func (r *Realm) getPeer(details map[string]interface{}) (Peer, error) {
@@ -58,9 +62,18 @@ func (r Realm) Close() {
 }
 
 func (r *Realm) init() {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
 	r.clients = cmap.New()
-	p, _ := r.getPeer(nil)
-	r.localClient.Client = NewClient(p)
+
+	if r.localClient == nil {
+		p, _ := r.getPeer(nil)
+		client := NewClient(p)
+		r.localClient = new(localClient)
+		r.localClient.Client = client
+	}
+
 	if r.Broker == nil {
 		r.Broker = NewDefaultBroker()
 	}
@@ -82,92 +95,109 @@ func (r *Realm) init() {
 // }
 
 func (l *localClient) onJoin(details map[string]interface{}) {
+	l.Lock()
+	defer l.Unlock()
 	l.Publish("wamp.session.on_join", []interface{}{details}, nil)
 }
 
 func (l *localClient) onLeave(session ID) {
+	l.Lock()
+	defer l.Unlock()
 	l.Publish("wamp.session.on_leave", []interface{}{session}, nil)
 }
 
+func (r *Realm) doOne(c <-chan Message, sess *Session) bool {
+	r.lock.RLock()
+	defer r.lock.RUnlock()
+
+	var msg Message
+	var open bool
+	select {
+	case msg, open = <-c:
+		if !open {
+			log.Println("lost session:", sess)
+			return false
+		}
+	case reason := <-sess.kill:
+		logErr(sess.Send(&Goodbye{Reason: reason, Details: make(map[string]interface{})}))
+		log.Printf("kill session %s: %v", sess, reason)
+		// TODO: wait for client Goodbye?
+		return false
+	}
+
+	log.Printf("[%s] %s: %+v", sess, msg.MessageType(), msg)
+	if isAuthz, err := r.Authorizer.Authorize(sess, msg); !isAuthz {
+		errMsg := &Error{Type: msg.MessageType()}
+		if err != nil {
+			errMsg.Error = ErrAuthorizationFailed
+			log.Printf("[%s] authorization failed: %v", sess, err)
+		} else {
+			errMsg.Error = ErrNotAuthorized
+			log.Printf("[%s] %s UNAUTHORIZED", sess, msg.MessageType())
+		}
+		logErr(sess.Send(errMsg))
+		return true
+	}
+
+	r.Interceptor.Intercept(sess, &msg)
+
+	switch msg := msg.(type) {
+	case *Goodbye:
+		logErr(sess.Send(&Goodbye{Reason: ErrGoodbyeAndOut, Details: make(map[string]interface{})}))
+		log.Printf("[%s] leaving: %v", sess, msg.Reason)
+		return false
+
+	// Broker messages
+	case *Publish:
+		r.Broker.Publish(sess, msg)
+	case *Subscribe:
+		r.Broker.Subscribe(sess, msg)
+	case *Unsubscribe:
+		r.Broker.Unsubscribe(sess, msg)
+
+	// Dealer messages
+	case *Register:
+		r.Dealer.Register(sess, msg)
+	case *Unregister:
+		r.Dealer.Unregister(sess, msg)
+	case *Call:
+		r.Dealer.Call(sess, msg)
+	case *Yield:
+		r.Dealer.Yield(sess, msg)
+
+	// Error messages
+	case *Error:
+		if msg.Type == INVOCATION {
+			// the only type of ERROR message the router should receive
+			r.Dealer.Error(sess, msg)
+		} else {
+			log.Printf("invalid ERROR message received: %v", msg)
+		}
+
+	default:
+		log.Println("Unhandled message:", msg.MessageType())
+	}
+	return true
+}
+
 func (r *Realm) handleSession(sess *Session) {
+	r.lock.RLock()
 	r.clients.Set(string(sess.Id), sess)
-	r.onJoin(sess.Details)
+	r.localClient.onJoin(sess.Details)
+	r.lock.RUnlock()
+
 	defer func() {
+		r.lock.RLock()
+		defer r.lock.RUnlock()
+
 		r.clients.Remove(string(sess.Id))
 		r.Dealer.RemoveSession(sess)
-		r.onLeave(sess.Id)
+		r.localClient.onLeave(sess.Id)
 	}()
 	c := sess.Receive()
 	// TODO: what happens if the realm is closed?
 
-	for {
-		var msg Message
-		var open bool
-		select {
-		case msg, open = <-c:
-			if !open {
-				log.Println("lost session:", sess)
-				return
-			}
-		case reason := <-sess.kill:
-			logErr(sess.Send(&Goodbye{Reason: reason, Details: make(map[string]interface{})}))
-			log.Printf("kill session %s: %v", sess, reason)
-			// TODO: wait for client Goodbye?
-			return
-		}
-
-		log.Printf("[%s] %s: %+v", sess, msg.MessageType(), msg)
-		if isAuthz, err := r.Authorizer.Authorize(sess, msg); !isAuthz {
-			errMsg := &Error{Type: msg.MessageType()}
-			if err != nil {
-				errMsg.Error = ErrAuthorizationFailed
-				log.Printf("[%s] authorization failed: %v", sess, err)
-			} else {
-				errMsg.Error = ErrNotAuthorized
-				log.Printf("[%s] %s UNAUTHORIZED", sess, msg.MessageType())
-			}
-			logErr(sess.Send(errMsg))
-			continue
-		}
-
-		r.Interceptor.Intercept(sess, &msg)
-
-		switch msg := msg.(type) {
-		case *Goodbye:
-			logErr(sess.Send(&Goodbye{Reason: ErrGoodbyeAndOut, Details: make(map[string]interface{})}))
-			log.Printf("[%s] leaving: %v", sess, msg.Reason)
-			return
-
-		// Broker messages
-		case *Publish:
-			r.Broker.Publish(sess, msg)
-		case *Subscribe:
-			r.Broker.Subscribe(sess, msg)
-		case *Unsubscribe:
-			r.Broker.Unsubscribe(sess, msg)
-
-		// Dealer messages
-		case *Register:
-			r.Dealer.Register(sess, msg)
-		case *Unregister:
-			r.Dealer.Unregister(sess, msg)
-		case *Call:
-			r.Dealer.Call(sess, msg)
-		case *Yield:
-			r.Dealer.Yield(sess, msg)
-
-		// Error messages
-		case *Error:
-			if msg.Type == INVOCATION {
-				// the only type of ERROR message the router should receive
-				r.Dealer.Error(sess, msg)
-			} else {
-				log.Printf("invalid ERROR message received: %v", msg)
-			}
-
-		default:
-			log.Println("Unhandled message:", msg.MessageType())
-		}
+	for r.doOne(c, sess) {
 	}
 }
 

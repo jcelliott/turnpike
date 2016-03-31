@@ -84,7 +84,7 @@ func TestCall(t *testing.T) {
 			dealer.Call(callerSession, msg)
 
 			Convey("The caller should have received an ERROR message", func() {
-				err := caller.received.(*Error)
+				err := caller.getReceived().(*Error)
 				So(err.Error, ShouldEqual, ErrNoSuchProcedure)
 				So(err.Details, ShouldNotBeNil)
 			})
@@ -106,9 +106,9 @@ func TestCall(t *testing.T) {
 					time.Sleep(time.Millisecond)
 
 					Convey("The caller should have received a RESULT message", func() {
-						So(caller.received, ShouldNotBeNil)
-						So(caller.received.MessageType(), ShouldEqual, RESULT)
-						So(caller.received.(*Result).Request, ShouldEqual, 125)
+						So(caller.getReceived(), ShouldNotBeNil)
+						So(caller.getReceived().MessageType(), ShouldEqual, RESULT)
+						So(caller.getReceived().(*Result).Request, ShouldEqual, 125)
 					})
 				})
 
@@ -120,9 +120,9 @@ func TestCall(t *testing.T) {
 					time.Sleep(time.Millisecond)
 
 					Convey("The caller should have received an ERROR message", func() {
-						So(caller.received, ShouldNotBeNil)
-						So(caller.received.MessageType(), ShouldEqual, ERROR)
-						So(caller.received.(*Error).Request, ShouldEqual, 125)
+						So(caller.getReceived(), ShouldNotBeNil)
+						So(caller.getReceived().MessageType(), ShouldEqual, ERROR)
+						So(caller.getReceived().(*Error).Request, ShouldEqual, 125)
 					})
 				})
 			})

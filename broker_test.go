@@ -1,6 +1,7 @@
 package turnpike
 
 import (
+	"sync"
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
@@ -9,11 +10,23 @@ import (
 type TestPeer struct {
 	received Message
 	sent     Message
+
+	sync.RWMutex
 }
 
 func (s *TestPeer) Send(msg Message) error {
+	s.Lock()
+	defer s.Unlock()
+
 	s.received = msg
 	return nil
+}
+
+func (s *TestPeer) getReceived() Message {
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.received
 }
 
 // TODO: implement me

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/streamrail/concurrent-map"
 )
 
 var defaultWelcomeDetails = map[string]interface{}{
@@ -44,7 +46,7 @@ type Router interface {
 
 // DefaultRouter is the default WAMP router implementation.
 type defaultRouter struct {
-	realms                map[URI]Realm
+	realms                cmap.ConcurrentMap
 	closing               bool
 	closeLock             sync.Mutex
 	sessionOpenCallbacks  []func(uint, string)
@@ -54,7 +56,7 @@ type defaultRouter struct {
 // NewDefaultRouter creates a very basic WAMP router.
 func NewDefaultRouter() Router {
 	return &defaultRouter{
-		realms:                make(map[URI]Realm),
+		realms:                cmap.New(),
 		sessionOpenCallbacks:  []func(uint, string){},
 		sessionCloseCallbacks: []func(uint, string){},
 	}
@@ -76,18 +78,22 @@ func (r *defaultRouter) Close() error {
 	}
 	r.closing = true
 	r.closeLock.Unlock()
-	for _, realm := range r.realms {
-		realm.Close()
+	for val := range r.realms.Iter() {
+		if realm, ok := val.Val.(*Realm); ok {
+			realm.Close()
+		} else {
+			log.Printf("defaultRouter.Close: expecting realm, found invalid type: %T", val.Val)
+		}
 	}
 	return nil
 }
 
 func (r *defaultRouter) RegisterRealm(uri URI, realm Realm) error {
-	if _, ok := r.realms[uri]; ok {
+	if _, ok := r.realms.Get(string(uri)); ok {
 		return RealmExistsError(uri)
 	}
 	realm.init()
-	r.realms[uri] = realm
+	r.realms.Set(string(uri), &realm)
 	log.Println("registered realm:", uri)
 	return nil
 }
@@ -112,8 +118,14 @@ func (r *defaultRouter) Accept(client Peer) error {
 		return fmt.Errorf("protocol violation: expected HELLO, received %s", msg.MessageType())
 	}
 
-	realm, ok := r.realms[hello.Realm]
-	if !ok {
+	var realm *Realm
+	if val, ok := r.realms.Get(string(hello.Realm)); ok {
+		if realm, ok = val.(*Realm); !ok {
+			logErr(client.Send(&Abort{Reason: ErrNoSuchRealm}))
+			logErr(client.Close())
+			return NoSuchRealmError(hello.Realm)
+		}
+	} else {
 		logErr(client.Send(&Abort{Reason: ErrNoSuchRealm}))
 		logErr(client.Close())
 		return NoSuchRealmError(hello.Realm)
@@ -170,12 +182,14 @@ func (r *defaultRouter) Accept(client Peer) error {
 
 // GetLocalPeer returns an internal peer connected to the specified realm.
 func (r *defaultRouter) GetLocalPeer(realmURI URI, details map[string]interface{}) (Peer, error) {
-	realm, ok := r.realms[realmURI]
-	if !ok {
+	if val, ok := r.realms.Get(string(realmURI)); !ok {
 		return nil, NoSuchRealmError(realmURI)
+	} else if realm, ok := val.(*Realm); !ok {
+		return nil, NoSuchRealmError(realmURI)
+	} else {
+		// TODO: session open/close callbacks?
+		return realm.getPeer(details)
 	}
-	// TODO: session open/close callbacks?
-	return realm.getPeer(details)
 }
 
 func (r *defaultRouter) getTestPeer() Peer {

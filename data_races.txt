@@ -1,0 +1,44 @@
+...
+3 total assertions
+
+...
+6 total assertions
+
+.
+7 total assertions
+
+.
+8 total assertions
+
+...............
+23 total assertions
+
+.......
+30 total assertions
+
+...
+33 total assertions
+
+..........
+43 total assertions
+
+.....
+48 total assertions
+
+..
+50 total assertions
+
+.....
+55 total assertions
+
+......
+61 total assertions
+
+.....
+66 total assertions
+
+...
+69 total assertions
+
+PASS
+ok  	gopkg.in/beatgammit/turnpike.v2	1.045s
