@@ -22,7 +22,7 @@ func main() {
 	}
 
 	quit := make(chan bool)
-	c.Subscribe("alarm.ring", func([]interface{}, map[string]interface{}) {
+	c.Subscribe("alarm.ring", nil, func([]interface{}, map[string]interface{}) {
 		fmt.Println("The alarm rang!")
 		c.Close()
 		quit <- true
@@ -37,7 +37,7 @@ func main() {
 	if duration, err := strconv.Atoi(text); err != nil {
 		log.Fatalln("invalid integer input:", err)
 	} else {
-		if _, err := c.Call("alarm.set", []interface{}{duration}, nil); err != nil {
+		if _, err := c.Call("alarm.set", nil, []interface{}{duration}, nil); err != nil {
 			log.Fatalln("error setting alarm:", err)
 		}
 	}

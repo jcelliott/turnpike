@@ -46,7 +46,7 @@ func main() {
 	}
 
 	messages := make(chan message)
-	if err := c.Subscribe("chat", func(args []interface{}, kwargs map[string]interface{}) {
+	if err := c.Subscribe("chat", nil, func(args []interface{}, kwargs map[string]interface{}) {
 		if len(args) == 2 {
 			if from, ok := args[0].(string); !ok {
 				log.Println("First argument not a string:", args[0])
@@ -69,7 +69,7 @@ func main() {
 
 func sendMessages(c *turnpike.Client, messages chan message) {
 	for msg := range messages {
-		if err := c.Publish("chat", []interface{}{msg.From, msg.Message}, nil); err != nil {
+		if err := c.Publish("chat", nil, []interface{}{msg.From, msg.Message}, nil); err != nil {
 			log.Println("Error sending message:", err)
 		}
 	}

@@ -324,12 +324,12 @@ func (c *Client) waitOnListener(id ID) (msg Message, err error) {
 type EventHandler func(args []interface{}, kwargs map[string]interface{})
 
 // Subscribe registers the EventHandler to be called for every message in the provided topic.
-func (c *Client) Subscribe(topic string, fn EventHandler) error {
+func (c *Client) Subscribe(topic string, options map[string]interface{}, fn EventHandler) error {
 	id := NewID()
 	c.registerListener(id)
 	sub := &Subscribe{
 		Request: id,
-		Options: make(map[string]interface{}),
+		Options: options,
 		Topic:   URI(topic),
 	}
 	if err := c.Send(sub); err != nil {
@@ -394,7 +394,7 @@ type MethodHandler func(
 ) (result *CallResult)
 
 // Register registers a MethodHandler procedure with the router.
-func (c *Client) Register(procedure string, fn MethodHandler, options map[string]interface{}) error {
+func (c *Client) Register(procedure string, options map[string]interface{}, fn MethodHandler) error {
 	id := NewID()
 	c.registerListener(id)
 	register := &Register{
@@ -430,7 +430,7 @@ func (c *Client) BasicRegister(procedure string, fn BasicMethodHandler) error {
 		details map[string]interface{}) (result *CallResult) {
 		return fn(args, kwargs)
 	}
-	return c.Register(procedure, wrap, make(map[string]interface{}))
+	return c.Register(procedure, make(map[string]interface{}), wrap)
 }
 
 // Unregister removes a procedure with the router
@@ -473,10 +473,10 @@ func (c *Client) Unregister(procedure string) error {
 }
 
 // Publish publishes an EVENT to all subscribed peers.
-func (c *Client) Publish(topic string, args []interface{}, kwargs map[string]interface{}) error {
+func (c *Client) Publish(topic string, options map[string]interface{}, args []interface{}, kwargs map[string]interface{}) error {
 	return c.Send(&Publish{
 		Request:     NewID(),
-		Options:     make(map[string]interface{}),
+		Options:     options,
 		Topic:       URI(topic),
 		Arguments:   args,
 		ArgumentsKw: kwargs,
@@ -484,14 +484,14 @@ func (c *Client) Publish(topic string, args []interface{}, kwargs map[string]int
 }
 
 // Call calls a procedure given a URI.
-func (c *Client) Call(procedure string, args []interface{}, kwargs map[string]interface{}) (*Result, error) {
+func (c *Client) Call(procedure string, options map[string]interface{}, args []interface{}, kwargs map[string]interface{}) (*Result, error) {
 	id := NewID()
 	c.registerListener(id)
 
 	call := &Call{
 		Request:     id,
 		Procedure:   URI(procedure),
-		Options:     make(map[string]interface{}),
+		Options:     options,
 		Arguments:   args,
 		ArgumentsKw: kwargs,
 	}
