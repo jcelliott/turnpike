@@ -1,20 +1,26 @@
 package turnpike
 
+import (
+	"sync"
+)
+
 // Broker is the interface implemented by an object that handles routing EVENTS
 // from Publishers to Subscribers.
 type Broker interface {
 	// Publishes a message to all Subscribers.
-	Publish(Sender, *Publish)
+	Publish(*Session, *Publish)
 	// Subscribes to messages on a URI.
-	Subscribe(Sender, *Subscribe)
+	Subscribe(*Session, *Subscribe)
 	// Unsubscribes from messages on a URI.
-	Unsubscribe(Sender, *Unsubscribe)
+	Unsubscribe(*Session, *Unsubscribe)
 }
 
 // A super simple broker that matches URIs to Subscribers.
 type defaultBroker struct {
 	routes        map[URI]map[ID]Sender
 	subscriptions map[ID]URI
+
+	sync.RWMutex
 }
 
 // NewDefaultBroker initializes and returns a simple broker that matches URIs to
@@ -30,20 +36,30 @@ func NewDefaultBroker() Broker {
 //
 // If msg.Options["acknowledge"] == true, the publisher receives a Published event
 // after the message has been sent to all subscribers.
-func (br *defaultBroker) Publish(pub Sender, msg *Publish) {
-	pubID := NewID()
+func (br *defaultBroker) Publish(sess *Session, msg *Publish) {
+	br.RLock()
+	defer br.RUnlock()
+
+	pub := sess.Peer
+	pubID := sess.NextRequestId()
 	evtTemplate := Event{
 		Publication: pubID,
 		Arguments:   msg.Arguments,
 		ArgumentsKw: msg.ArgumentsKw,
 		Details:     make(map[string]interface{}),
 	}
+
+	excludePublisher := true
+	if exclude, ok := msg.Options["exclude_me"].(bool); ok {
+		excludePublisher = exclude
+	}
+
 	for id, sub := range br.routes[msg.Topic] {
 		// shallow-copy the template
 		event := evtTemplate
 		event.Subscription = id
 		// don't send event to publisher
-		if sub != pub {
+		if sub != pub || !excludePublisher {
 			sub.Send(&event)
 		}
 	}
@@ -55,19 +71,25 @@ func (br *defaultBroker) Publish(pub Sender, msg *Publish) {
 }
 
 // Subscribe subscribes the client to the given topic.
-func (br *defaultBroker) Subscribe(sub Sender, msg *Subscribe) {
+func (br *defaultBroker) Subscribe(sess *Session, msg *Subscribe) {
+	br.Lock()
+	defer br.Unlock()
+
 	if _, ok := br.routes[msg.Topic]; !ok {
 		br.routes[msg.Topic] = make(map[ID]Sender)
 	}
-	id := NewID()
-	br.routes[msg.Topic][id] = sub
+	id := sess.NextRequestId()
+	br.routes[msg.Topic][id] = sess.Peer
 
 	br.subscriptions[id] = msg.Topic
 
-	sub.Send(&Subscribed{Request: msg.Request, Subscription: id})
+	sess.Peer.Send(&Subscribed{Request: msg.Request, Subscription: id})
 }
 
-func (br *defaultBroker) Unsubscribe(sub Sender, msg *Unsubscribe) {
+func (br *defaultBroker) Unsubscribe(sess *Session, msg *Unsubscribe) {
+	br.Lock()
+	defer br.Unlock()
+
 	topic, ok := br.subscriptions[msg.Subscription]
 	if !ok {
 		err := &Error{
@@ -75,7 +97,7 @@ func (br *defaultBroker) Unsubscribe(sub Sender, msg *Unsubscribe) {
 			Request: msg.Request,
 			Error:   ErrNoSuchSubscription,
 		}
-		sub.Send(err)
+		sess.Peer.Send(err)
 		log.Printf("Error unsubscribing: no such subscription %v", msg.Subscription)
 		return
 	}
@@ -91,5 +113,5 @@ func (br *defaultBroker) Unsubscribe(sub Sender, msg *Unsubscribe) {
 			delete(br.routes, topic)
 		}
 	}
-	sub.Send(&Unsubscribed{Request: msg.Request})
+	sess.Peer.Send(&Unsubscribed{Request: msg.Request})
 }
