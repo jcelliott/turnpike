@@ -95,6 +95,7 @@ func (s *WebsocketServer) GetLocalClient(realm string, details map[string]interf
 	}
 	c := NewClient(peer)
 	go c.Receive()
+	go c.run()
 	return c, nil
 }
 
