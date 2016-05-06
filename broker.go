@@ -1,5 +1,7 @@
 package turnpike
 
+import "sync"
+
 // Broker is the interface implemented by an object that handles routing EVENTS
 // from Publishers to Subscribers.
 type Broker interface {
@@ -15,6 +17,7 @@ type Broker interface {
 type defaultBroker struct {
 	routes        map[URI]map[ID]Sender
 	subscriptions map[ID]URI
+	lock          sync.RWMutex
 }
 
 // NewDefaultBroker initializes and returns a simple broker that matches URIs to
@@ -38,6 +41,8 @@ func (br *defaultBroker) Publish(pub Sender, msg *Publish) {
 		ArgumentsKw: msg.ArgumentsKw,
 		Details:     make(map[string]interface{}),
 	}
+
+	br.lock.RLock()
 	for id, sub := range br.routes[msg.Topic] {
 		// shallow-copy the template
 		event := evtTemplate
@@ -47,6 +52,7 @@ func (br *defaultBroker) Publish(pub Sender, msg *Publish) {
 			sub.Send(&event)
 		}
 	}
+	br.lock.RUnlock()
 
 	// only send published message if acknowledge is present and set to true
 	if doPub, _ := msg.Options["acknowledge"].(bool); doPub {
@@ -56,20 +62,24 @@ func (br *defaultBroker) Publish(pub Sender, msg *Publish) {
 
 // Subscribe subscribes the client to the given topic.
 func (br *defaultBroker) Subscribe(sub Sender, msg *Subscribe) {
+	id := NewID()
+
+	br.lock.Lock()
 	if _, ok := br.routes[msg.Topic]; !ok {
 		br.routes[msg.Topic] = make(map[ID]Sender)
 	}
-	id := NewID()
 	br.routes[msg.Topic][id] = sub
-
 	br.subscriptions[id] = msg.Topic
+	br.lock.Unlock()
 
 	sub.Send(&Subscribed{Request: msg.Request, Subscription: id})
 }
 
 func (br *defaultBroker) Unsubscribe(sub Sender, msg *Unsubscribe) {
+	br.lock.Lock()
 	topic, ok := br.subscriptions[msg.Subscription]
 	if !ok {
+		br.lock.Unlock()
 		err := &Error{
 			Type:    msg.MessageType(),
 			Request: msg.Request,
@@ -91,5 +101,7 @@ func (br *defaultBroker) Unsubscribe(sub Sender, msg *Unsubscribe) {
 			delete(br.routes, topic)
 		}
 	}
+	br.lock.Unlock()
+
 	sub.Send(&Unsubscribed{Request: msg.Request})
 }
