@@ -26,6 +26,7 @@ type Realm struct {
 	AuthTimeout time.Duration
 	clients     map[ID]Session
 	localClient
+	acts chan func()
 }
 
 type localClient struct {
@@ -45,13 +46,33 @@ func (r *Realm) getPeer(details map[string]interface{}) (Peer, error) {
 
 // Close disconnects all clients after sending a goodbye message
 func (r Realm) Close() {
-	for _, client := range r.clients {
-		client.kill <- ErrSystemShutdown
+	r.acts <- func() {
+		for _, client := range r.clients {
+			client.kill <- ErrSystemShutdown
+		}
 	}
+
+	var (
+		sync     = make(chan struct{})
+		nclients int
+	)
+	for {
+		r.acts <- func() {
+			nclients = len(r.clients)
+			sync <- struct{}{}
+		}
+		<-sync
+		if nclients == 0 {
+			break
+		}
+	}
+
+	close(r.acts)
 }
 
 func (r *Realm) init() {
 	r.clients = make(map[ID]Session)
+	r.acts = make(chan func())
 	p, _ := r.getPeer(nil)
 	r.localClient.Client = NewClient(p)
 	if r.Broker == nil {
@@ -69,6 +90,17 @@ func (r *Realm) init() {
 	if r.AuthTimeout == 0 {
 		r.AuthTimeout = defaultAuthTimeout
 	}
+	go r.run()
+}
+
+func (r *Realm) run() {
+	for {
+		if act, ok := <-r.acts; ok {
+			act()
+		} else {
+			return
+		}
+	}
 }
 
 // func (r *Realm) metaHandler(c *Client) {
@@ -83,12 +115,19 @@ func (l *localClient) onLeave(session ID) {
 }
 
 func (r *Realm) handleSession(sess Session) {
-	r.clients[sess.Id] = sess
-	r.onJoin(sess.Details)
+	sync := make(chan struct{})
+	r.acts <- func() {
+		r.clients[sess.Id] = sess
+		r.onJoin(sess.Details)
+		sync <- struct{}{}
+	}
+	<-sync
 	defer func() {
-		delete(r.clients, sess.Id)
-		r.Dealer.RemovePeer(sess.Peer)
-		r.onLeave(sess.Id)
+		r.acts <- func() {
+			delete(r.clients, sess.Id)
+			r.Dealer.RemovePeer(sess.Peer)
+			r.onLeave(sess.Id)
+		}
 	}()
 	c := sess.Receive()
 	// TODO: what happens if the realm is closed?
@@ -133,27 +172,27 @@ func (r *Realm) handleSession(sess Session) {
 
 		// Broker messages
 		case *Publish:
-			r.Broker.Publish(sess.Peer, msg)
+			r.acts <- func() { r.Broker.Publish(sess.Peer, msg) }
 		case *Subscribe:
-			r.Broker.Subscribe(sess.Peer, msg)
+			r.acts <- func() { r.Broker.Subscribe(sess.Peer, msg) }
 		case *Unsubscribe:
-			r.Broker.Unsubscribe(sess.Peer, msg)
+			r.acts <- func() { r.Broker.Unsubscribe(sess.Peer, msg) }
 
 		// Dealer messages
 		case *Register:
-			r.Dealer.Register(sess.Peer, msg)
+			r.acts <- func() { r.Dealer.Register(sess.Peer, msg) }
 		case *Unregister:
-			r.Dealer.Unregister(sess.Peer, msg)
+			r.acts <- func() { r.Dealer.Unregister(sess.Peer, msg) }
 		case *Call:
-			r.Dealer.Call(sess.Peer, msg)
+			r.acts <- func() { r.Dealer.Call(sess.Peer, msg) }
 		case *Yield:
-			r.Dealer.Yield(sess.Peer, msg)
+			r.acts <- func() { r.Dealer.Yield(sess.Peer, msg) }
 
 		// Error messages
 		case *Error:
 			if msg.Type == INVOCATION {
 				// the only type of ERROR message the router should receive
-				r.Dealer.Error(sess.Peer, msg)
+				r.acts <- func() { r.Dealer.Error(sess.Peer, msg) }
 			} else {
 				log.Printf("invalid ERROR message received: %v", msg)
 			}
