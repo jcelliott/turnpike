@@ -157,6 +157,7 @@ func (c *Client) joinRealmCRA(realm string, details map[string]interface{}) (map
 	}
 	if msg, err := GetMessageTimeout(c.Peer, c.ReceiveTimeout); err != nil {
 		c.Peer.Close()
+		close(c.acts)
 		return nil, err
 	} else if welcome, ok := msg.(*Welcome); !ok {
 		c.Send(abortUnexpectedMsg)
