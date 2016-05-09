@@ -329,10 +329,8 @@ func (c *Client) handleInvocation(msg *Invocation) {
 					}
 				}
 
-				c.acts <- func() {
-					if err := c.Send(tosend); err != nil {
-						log.Println("error sending message:", err)
-					}
+				if err := c.Send(tosend); err != nil {
+					log.Println("error sending message:", err)
 				}
 			}()
 		} else {
@@ -393,10 +391,6 @@ type EventHandler func(args []interface{}, kwargs map[string]interface{})
 
 // Subscribe registers the EventHandler to be called for every message in the provided topic.
 func (c *Client) Subscribe(topic string, fn EventHandler) error {
-	var (
-		sync = make(chan struct{})
-		err  error
-	)
 	id := NewID()
 	c.registerListener(id)
 	sub := &Subscribe{
@@ -404,17 +398,13 @@ func (c *Client) Subscribe(topic string, fn EventHandler) error {
 		Options: make(map[string]interface{}),
 		Topic:   URI(topic),
 	}
-	c.acts <- func() {
-		err = c.Send(sub)
-		sync <- struct{}{}
-	}
-	<-sync
+	err := c.Send(sub)
 	if err != nil {
 		return err
 	}
 	// wait to receive SUBSCRIBED message
-	msg, err := c.waitOnListener(id)
-	if err != nil {
+	var msg Message
+	if msg, err = c.waitOnListener(id); err != nil {
 		return err
 	} else if e, ok := msg.(*Error); ok {
 		return fmt.Errorf("error subscribing to topic '%v': %v", topic, e.Error)
@@ -422,6 +412,7 @@ func (c *Client) Subscribe(topic string, fn EventHandler) error {
 		return fmt.Errorf(formatUnexpectedMessage(msg, SUBSCRIBED))
 	} else {
 		// register the event handler with this subscription
+		sync := make(chan struct{})
 		c.acts <- func() {
 			c.events[subscribed.Subscription] = &eventDesc{topic, fn}
 			sync <- struct{}{}
@@ -437,6 +428,7 @@ func (c *Client) Unsubscribe(topic string) error {
 		sync           = make(chan struct{})
 		subscriptionID ID
 		found          bool
+		msg            Message
 		err            error
 	)
 	c.acts <- func() {
@@ -460,17 +452,12 @@ func (c *Client) Unsubscribe(topic string) error {
 		Request:      id,
 		Subscription: subscriptionID,
 	}
-	c.acts <- func() {
-		err = c.Send(sub)
-		sync <- struct{}{}
-	}
-	<-sync
+	err = c.Send(sub)
 	if err != nil {
 		return err
 	}
 	// wait to receive UNSUBSCRIBED message
-	msg, err := c.waitOnListener(id)
-	if err != nil {
+	if msg, err = c.waitOnListener(id); err != nil {
 		return err
 	} else if e, ok := msg.(*Error); ok {
 		return fmt.Errorf("error unsubscribing to topic '%v': %v", topic, e.Error)
@@ -492,10 +479,6 @@ type MethodHandler func(
 
 // Register registers a MethodHandler procedure with the router.
 func (c *Client) Register(procedure string, fn MethodHandler, options map[string]interface{}) error {
-	var (
-		sync = make(chan struct{})
-		err  error
-	)
 	id := NewID()
 	c.registerListener(id)
 	register := &Register{
@@ -503,18 +486,14 @@ func (c *Client) Register(procedure string, fn MethodHandler, options map[string
 		Options:   options,
 		Procedure: URI(procedure),
 	}
-	c.acts <- func() {
-		err = c.Send(register)
-		sync <- struct{}{}
-	}
-	<-sync
+	err := c.Send(register)
 	if err != nil {
 		return err
 	}
 
 	// wait to receive REGISTERED message
-	msg, err := c.waitOnListener(id)
-	if err != nil {
+	var msg Message
+	if msg, err = c.waitOnListener(id); err != nil {
 		return err
 	} else if e, ok := msg.(*Error); ok {
 		return fmt.Errorf("error registering procedure '%v': %v", procedure, e.Error)
@@ -522,6 +501,7 @@ func (c *Client) Register(procedure string, fn MethodHandler, options map[string
 		return fmt.Errorf(formatUnexpectedMessage(msg, REGISTERED))
 	} else {
 		// register the event handler with this registration
+		sync := make(chan struct{})
 		c.acts <- func() {
 			c.procedures[registered.Registration] = &procedureDesc{procedure, fn}
 			sync <- struct{}{}
@@ -549,6 +529,7 @@ func (c *Client) Unregister(procedure string) error {
 		sync        = make(chan struct{})
 		procedureID ID
 		found       bool
+		msg         Message
 		err         error
 	)
 	c.acts <- func() {
@@ -571,18 +552,12 @@ func (c *Client) Unregister(procedure string) error {
 		Request:      id,
 		Registration: procedureID,
 	}
-	c.acts <- func() {
-		err = c.Send(unregister)
-		sync <- struct{}{}
-	}
-	<-sync
-	if err != nil {
+	if err = c.Send(unregister); err != nil {
 		return err
 	}
 
 	// wait to receive UNREGISTERED message
-	msg, err := c.waitOnListener(id)
-	if err != nil {
+	if msg, err = c.waitOnListener(id); err != nil {
 		return err
 	} else if e, ok := msg.(*Error); ok {
 		return fmt.Errorf("error unregister to procedure '%v': %v", procedure, e.Error)
@@ -600,22 +575,13 @@ func (c *Client) Unregister(procedure string) error {
 
 // Publish publishes an EVENT to all subscribed peers.
 func (c *Client) Publish(topic string, args []interface{}, kwargs map[string]interface{}) error {
-	var (
-		sync = make(chan struct{})
-		err  error
-	)
-	c.acts <- func() {
-		c.Send(&Publish{
-			Request:     NewID(),
-			Options:     make(map[string]interface{}),
-			Topic:       URI(topic),
-			Arguments:   args,
-			ArgumentsKw: kwargs,
-		})
-		sync <- struct{}{}
-	}
-	<-sync
-	return err
+	return c.Send(&Publish{
+		Request:     NewID(),
+		Options:     make(map[string]interface{}),
+		Topic:       URI(topic),
+		Arguments:   args,
+		ArgumentsKw: kwargs,
+	})
 }
 
 // Call calls a procedure given a URI.
@@ -630,22 +596,14 @@ func (c *Client) Call(procedure string, args []interface{}, kwargs map[string]in
 		Arguments:   args,
 		ArgumentsKw: kwargs,
 	}
-	var (
-		sync = make(chan struct{})
-		err  error
-	)
-	c.acts <- func() {
-		err = c.Send(call)
-		sync <- struct{}{}
-	}
-	<-sync
+	err := c.Send(call)
 	if err != nil {
 		return nil, err
 	}
 
 	// wait to receive RESULT message
-	msg, err := c.waitOnListener(id)
-	if err != nil {
+	var msg Message
+	if msg, err = c.waitOnListener(id); err != nil {
 		return nil, err
 	} else if e, ok := msg.(*Error); ok {
 		return nil, fmt.Errorf("error calling procedure '%v': %v", procedure, e.Error)
