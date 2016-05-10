@@ -585,14 +585,14 @@ func (c *Client) Publish(topic string, args []interface{}, kwargs map[string]int
 }
 
 // Call calls a procedure given a URI.
-func (c *Client) Call(procedure string, args []interface{}, kwargs map[string]interface{}) (*Result, error) {
+func (c *Client) Call(procedure string, args []interface{}, kwargs map[string]interface{}, options map[string]interface{}) (*Result, error) {
 	id := NewID()
 	c.registerListener(id)
 
 	call := &Call{
 		Request:     id,
 		Procedure:   URI(procedure),
-		Options:     make(map[string]interface{}),
+		Options:     options,
 		Arguments:   args,
 		ArgumentsKw: kwargs,
 	}
