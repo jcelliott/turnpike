@@ -11,10 +11,13 @@ type Broker interface {
 	Subscribe(Sender, *Subscribe)
 	// Unsubscribes from messages on a URI.
 	Unsubscribe(Sender, *Unsubscribe)
+	// Remove a subscriber
+	RemovePeer(Sender)
 }
 
 // A super simple broker that matches URIs to Subscribers.
 type defaultBroker struct {
+	peers         map[Sender]map[ID]struct{}
 	routes        map[URI]map[ID]Sender
 	subscriptions map[ID]URI
 	lock          sync.RWMutex
@@ -24,6 +27,7 @@ type defaultBroker struct {
 // Subscribers.
 func NewDefaultBroker() Broker {
 	return &defaultBroker{
+		peers:         make(map[Sender]map[ID]struct{}),
 		routes:        make(map[URI]map[ID]Sender),
 		subscriptions: make(map[ID]URI),
 	}
@@ -69,6 +73,14 @@ func (br *defaultBroker) Subscribe(sub Sender, msg *Subscribe) {
 		br.routes[msg.Topic] = make(map[ID]Sender)
 	}
 	br.routes[msg.Topic][id] = sub
+
+	subs, ok := br.peers[sub]
+	if !ok {
+		subs = make(map[ID]struct{})
+		br.peers[sub] = subs
+	}
+	subs[id] = struct{}{}
+
 	br.subscriptions[id] = msg.Topic
 	br.lock.Unlock()
 
@@ -91,6 +103,7 @@ func (br *defaultBroker) Unsubscribe(sub Sender, msg *Unsubscribe) {
 	}
 	delete(br.subscriptions, msg.Subscription)
 
+	// clean-up routes
 	if r, ok := br.routes[topic]; !ok {
 		log.Printf("Error unsubscribing: unable to find routes for %s topic", topic)
 	} else if _, ok := r[msg.Subscription]; !ok {
@@ -101,7 +114,51 @@ func (br *defaultBroker) Unsubscribe(sub Sender, msg *Unsubscribe) {
 			delete(br.routes, topic)
 		}
 	}
+
+	// clean up sender's subscription
+	if s, ok := br.peers[sub]; !ok {
+		log.Println("Error unsubscribing: unable to find sender's subscriptions")
+	} else if _, ok := s[msg.Subscription]; !ok {
+		log.Printf("Error unsubscribing: sender does not contain %s subscription", msg.Subscription)
+	} else {
+		delete(s, msg.Subscription)
+		if len(s) == 0 {
+			delete(br.peers, sub)
+		}
+	}
+
 	br.lock.Unlock()
 
 	sub.Send(&Unsubscribed{Request: msg.Request})
+}
+
+func (br *defaultBroker) RemovePeer(sub Sender) {
+	br.lock.Lock()
+	defer br.lock.Unlock()
+
+	for id, _ := range br.peers[sub] {
+		topic, ok := br.subscriptions[id]
+		if !ok {
+			log.Printf("Error removing peer: no such subscription %v", id)
+			continue
+		}
+		delete(br.subscriptions, id)
+
+		// clean up routes
+		r, ok := br.routes[topic]
+		if !ok {
+			log.Printf("Error removing peer: unable to find routes for %s topic", topic)
+			continue
+		}
+		if _, ok = r[id]; !ok {
+			log.Printf("Error removing peer: %s route does not exist for %v subscription", topic, id)
+			continue
+		}
+		delete(r, id)
+		if len(r) == 0 {
+			delete(br.routes, topic)
+		}
+	}
+
+	delete(br.peers, sub)
 }

@@ -126,6 +126,7 @@ func (r *Realm) handleSession(sess Session) {
 		r.acts <- func() {
 			delete(r.clients, sess.Id)
 			r.Dealer.RemovePeer(sess.Peer)
+			r.Broker.RemovePeer(sess.Peer)
 			r.onLeave(sess.Id)
 		}
 	}()
