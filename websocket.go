@@ -19,25 +19,29 @@ type websocketPeer struct {
 }
 
 // NewWebsocketPeer connects to the websocket server at the specified url.
-func NewWebsocketPeer(serialization Serialization, url, origin string, tlscfg *tls.Config) (Peer, error) {
+func NewWebsocketPeer(serialization Serialization, url, origin string, tlscfg *tls.Config, dialer *websocket.Dialer) (Peer, error) {
 	switch serialization {
 	case JSON:
 		return newWebsocketPeer(url, jsonWebsocketProtocol, origin,
-			new(JSONSerializer), websocket.TextMessage, tlscfg,
+			new(JSONSerializer), websocket.TextMessage, tlscfg, dialer,
 		)
 	case MSGPACK:
 		return newWebsocketPeer(url, msgpackWebsocketProtocol, origin,
-			new(MessagePackSerializer), websocket.BinaryMessage, tlscfg,
+			new(MessagePackSerializer), websocket.BinaryMessage, tlscfg, dialer,
 		)
 	default:
 		return nil, fmt.Errorf("Unsupported serialization: %v", serialization)
 	}
 }
 
-func newWebsocketPeer(url, protocol, origin string, serializer Serializer, payloadType int, tlscfg *tls.Config) (Peer, error) {
-	dialer := websocket.Dialer{
-		Subprotocols:    []string{protocol},
-		TLSClientConfig: tlscfg,
+func newWebsocketPeer(url, protocol, origin string, serializer Serializer, payloadType int, tlscfg *tls.Config, dialer *websocket.Dialer) (Peer, error) {
+	switch dialer {
+	case nil:
+		dialer = &websocket.Dialer{
+			Subprotocols: []string{protocol},
+		}
+	default:
+		dialer.Subprotocols = append(dialer.Subprotocols, protocol)
 	}
 	conn, _, err := dialer.Dial(url, nil)
 	if err != nil {
