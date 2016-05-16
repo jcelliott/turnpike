@@ -21,8 +21,6 @@ func (mt MessageType) New() Message {
 		return new(Authenticate)
 	case GOODBYE:
 		return new(Goodbye)
-	case HEARTBEAT:
-		return new(Heartbeat)
 	case ERROR:
 		return new(Error)
 
@@ -83,8 +81,6 @@ func (mt MessageType) String() string {
 		return "AUTHENTICATE"
 	case GOODBYE:
 		return "GOODBYE"
-	case HEARTBEAT:
-		return "HEARTBEAT"
 	case ERROR:
 		return "ERROR"
 
@@ -138,7 +134,6 @@ const (
 	CHALLENGE    MessageType = 4
 	AUTHENTICATE MessageType = 5
 	GOODBYE      MessageType = 6
-	HEARTBEAT    MessageType = 7
 	ERROR        MessageType = 8
 
 	PUBLISH   MessageType = 16 //	Tx 	Rx
@@ -229,18 +224,6 @@ type Goodbye struct {
 
 func (msg *Goodbye) MessageType() MessageType {
 	return GOODBYE
-}
-
-// [HEARTBEAT, IncomingSeq|integer, OutgoingSeq|integer
-// [HEARTBEAT, IncomingSeq|integer, OutgoingSeq|integer, Discard|string]
-type Heartbeat struct {
-	IncomingSeq uint
-	OutgoingSeq uint
-	Discard     string
-}
-
-func (msg *Heartbeat) MessageType() MessageType {
-	return HEARTBEAT
 }
 
 // [ERROR, REQUEST.Type|int, REQUEST.Request|id, Details|dict, Error|uri]
