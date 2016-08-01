@@ -20,6 +20,8 @@ type defaultBroker struct {
 	routes        map[URI]map[ID]Sender
 	subscriptions map[ID]URI
 
+	lastRequestId ID
+
 	sync.RWMutex
 }
 
@@ -32,6 +34,15 @@ func NewDefaultBroker() Broker {
 	}
 }
 
+func (br *defaultBroker) nextRequestId() ID {
+	br.lastRequestId++
+	if br.lastRequestId > MAX_REQUEST_ID {
+		br.lastRequestId = 1
+	}
+
+	return br.lastRequestId
+}
+
 // Publish sends a message to all subscribed clients except for the sender.
 //
 // If msg.Options["acknowledge"] == true, the publisher receives a Published event
@@ -41,7 +52,7 @@ func (br *defaultBroker) Publish(sess *Session, msg *Publish) {
 	defer br.RUnlock()
 
 	pub := sess.Peer
-	pubID := sess.NextRequestId()
+	pubID := NewID()
 	evtTemplate := Event{
 		Publication: pubID,
 		Arguments:   msg.Arguments,
@@ -78,7 +89,7 @@ func (br *defaultBroker) Subscribe(sess *Session, msg *Subscribe) {
 	if _, ok := br.routes[msg.Topic]; !ok {
 		br.routes[msg.Topic] = make(map[ID]Sender)
 	}
-	id := sess.NextRequestId()
+	id := br.nextRequestId()
 	br.routes[msg.Topic][id] = sess.Peer
 
 	br.subscriptions[id] = msg.Topic
