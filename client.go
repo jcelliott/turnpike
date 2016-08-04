@@ -3,6 +3,7 @@ package turnpike
 import (
 	"crypto/tls"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -38,6 +39,8 @@ type Client struct {
 	events       map[ID]*eventDesc
 	procedures   map[ID]*procedureDesc
 	requestCount uint
+
+	lock sync.RWMutex
 }
 
 type procedureDesc struct {
@@ -212,11 +215,13 @@ func (c *Client) Receive() {
 		switch msg := msg.(type) {
 
 		case *Event:
+			c.lock.RLock()
 			if event, ok := c.events[msg.Subscription]; ok {
 				go event.handler(msg.Arguments, msg.ArgumentsKw)
 			} else {
 				log.Println("no handler registered for subscription:", msg.Subscription)
 			}
+			c.lock.RUnlock()
 
 		case *Invocation:
 			c.handleInvocation(msg)
@@ -251,6 +256,8 @@ func (c *Client) Receive() {
 
 func (c *Client) notifyListener(msg Message, requestID ID) {
 	// pass in the request ID so we don't have to do any type assertion
+	c.lock.RLock()
+	defer c.lock.RUnlock()
 	if l, ok := c.listeners[requestID]; ok {
 		l <- msg
 	} else {
@@ -259,7 +266,9 @@ func (c *Client) notifyListener(msg Message, requestID ID) {
 }
 
 func (c *Client) handleInvocation(msg *Invocation) {
+	c.lock.RLock()
 	if proc, ok := c.procedures[msg.Registration]; ok {
+		c.lock.RUnlock()
 		go func() {
 			result := proc.handler(msg.Arguments, msg.ArgumentsKw, msg.Details)
 
@@ -287,6 +296,7 @@ func (c *Client) handleInvocation(msg *Invocation) {
 			}
 		}()
 	} else {
+		c.lock.RUnlock()
 		log.Println("no handler registered for registration:", msg.Registration)
 		if err := c.Send(&Error{
 			Type:    INVOCATION,
@@ -302,12 +312,16 @@ func (c *Client) handleInvocation(msg *Invocation) {
 func (c *Client) registerListener(id ID) {
 	log.Println("register listener:", id)
 	wait := make(chan Message, 1)
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	c.listeners[id] = wait
 }
 
 func (c *Client) waitOnListener(id ID) (msg Message, err error) {
 	log.Println("wait on listener:", id)
+	c.lock.RLock()
 	wait, ok := c.listeners[id]
+	c.lock.RUnlock()
 	if !ok {
 		return nil, fmt.Errorf("unknown listener ID: %v", id)
 	}
@@ -345,6 +359,8 @@ func (c *Client) Subscribe(topic string, fn EventHandler) error {
 		return fmt.Errorf(formatUnexpectedMessage(msg, SUBSCRIBED))
 	} else {
 		// register the event handler with this subscription
+		c.lock.Lock()
+		defer c.lock.Unlock()
 		c.events[subscribed.Subscription] = &eventDesc{topic, fn}
 	}
 	return nil
@@ -356,12 +372,14 @@ func (c *Client) Unsubscribe(topic string) error {
 		subscriptionID ID
 		found          bool
 	)
+	c.lock.RLock()
 	for id, desc := range c.events {
 		if desc.topic == topic {
 			subscriptionID = id
 			found = true
 		}
 	}
+	c.lock.RUnlock()
 	if !found {
 		return fmt.Errorf("Event %s is not registered with this client.", topic)
 	}
@@ -384,6 +402,9 @@ func (c *Client) Unsubscribe(topic string) error {
 	} else if _, ok := msg.(*Unsubscribed); !ok {
 		return fmt.Errorf(formatUnexpectedMessage(msg, UNSUBSCRIBED))
 	}
+
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	delete(c.events, subscriptionID)
 	return nil
 }
@@ -416,6 +437,8 @@ func (c *Client) Register(procedure string, fn MethodHandler, options map[string
 		return fmt.Errorf(formatUnexpectedMessage(msg, REGISTERED))
 	} else {
 		// register the event handler with this registration
+		c.lock.Lock()
+		defer c.lock.Unlock()
 		c.procedures[registered.Registration] = &procedureDesc{procedure, fn}
 	}
 	return nil
@@ -439,12 +462,14 @@ func (c *Client) Unregister(procedure string) error {
 		procedureID ID
 		found       bool
 	)
+	c.lock.RLock()
 	for id, p := range c.procedures {
 		if p.name == procedure {
 			procedureID = id
 			found = true
 		}
 	}
+	c.lock.RUnlock()
 	if !found {
 		return fmt.Errorf("Procedure %s is not registered with this client.", procedure)
 	}
@@ -468,6 +493,8 @@ func (c *Client) Unregister(procedure string) error {
 		return fmt.Errorf(formatUnexpectedMessage(msg, UNREGISTERED))
 	}
 	// register the event handler with this unregistration
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	delete(c.procedures, procedureID)
 	return nil
 }
