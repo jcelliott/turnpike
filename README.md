@@ -1,4 +1,4 @@
-Turnpike [![Build Status](https://drone.io/github.com/jcelliott/turnpike/status.png)](https://drone.io/github.com/jcelliott/turnpike/latest) [![Coverage Status](https://coveralls.io/repos/jcelliott/turnpike/badge.svg?branch=v2)](https://coveralls.io/r/jcelliott/turnpike?branch=v2) [![GoDoc](https://godoc.org/gopkg.in/jcelliott/turnpike?status.svg)](http://godoc.org/gopkg.in/jcelliott/turnpike.v2)
+Turnpike [![Build Status](https://drone.io/github.com/jcelliott/turnpike/status.png)](https://drone.io/github.com/jcelliott/turnpike/latest) [![Coverage Status](https://coveralls.io/repos/jcelliott/turnpike/badge.svg?branch=v2)](https://coveralls.io/r/jcelliott/turnpike?branch=v2) [![GoDoc](https://godoc.org/gopkg.in/beatgammit/turnpike?status.svg)](http://godoc.org/gopkg.in/beatgammit/turnpike.v2)
 ===
 
 Go implementation of [WAMP](http://wamp.ws/) - The Web Application Messaging Protocol
@@ -18,25 +18,23 @@ basic stand-alone router. The router library can be used to embed a WAMP router
 in another application, or to build a custom router implementation. The client
 library can be used to communicate with any WAMP router.
 
-This version of Turnpike supports WAMP v2. For WAMP v1 support see the [v1 branch](https://github.com/jcelliott/turnpike/tree/v1).
-
 Status
 ---
 
 Turnpike v2 is still under development, but is getting close to a stable
 release. If you have any feedback or suggestions, please
-[open an issue](https://github.com/jcelliott/turnpike/issues/new).
+[open an issue](https://github.com/beatgammit/turnpike/issues/new).
 
 Installation
 ---
 
 Library:
 
-    go get -u gopkg.in/jcelliott/turnpike.v2
+    go get -u gopkg.in/beatgammit/turnpike.v2
 
 Stand-alone router:
 
-    go get -u gopkg.in/jcelliott/turnpike.v2/turnpike
+    go get -u gopkg.in/beatgammit/turnpike.v2/turnpike
 
 Client library usage
 ---
@@ -56,7 +54,7 @@ import (
 	"log"
 	"net/http"
 
-	"gopkg.in/jcelliott/turnpike.v2"
+	"gopkg.in/beatgammit/turnpike.v2"
 )
 
 func main() {
