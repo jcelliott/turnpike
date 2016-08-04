@@ -3,6 +3,7 @@ package turnpike
 import (
 	"fmt"
 	"net/http"
+	"sync"
 
 	"github.com/gorilla/websocket"
 )
@@ -40,6 +41,8 @@ type WebsocketServer struct {
 	TextSerializer Serializer
 	// The serializer to use for binary frames. Defaults to JSONSerializer.
 	BinarySerializer Serializer
+
+	lock sync.RWMutex
 }
 
 // NewWebsocketServer creates a new WebsocketServer from a map of realms
@@ -79,6 +82,8 @@ func (s *WebsocketServer) RegisterProtocol(proto string, payloadType int, serial
 	if payloadType != websocket.TextMessage && payloadType != websocket.BinaryMessage {
 		return invalidPayload(payloadType)
 	}
+	s.lock.Lock()
+	defer s.lock.Unlock()
 	if _, ok := s.protocols[proto]; ok {
 		return protocolExists(proto)
 	}
@@ -114,10 +119,14 @@ func (s *WebsocketServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *WebsocketServer) handleWebsocket(conn *websocket.Conn) {
 	var serializer Serializer
 	var payloadType int
+	s.lock.RLock()
 	if proto, ok := s.protocols[conn.Subprotocol()]; ok {
+		s.lock.RUnlock()
 		serializer = proto.serializer
 		payloadType = proto.payloadType
 	} else {
+		s.lock.RUnlock()
+
 		// TODO: this will not currently ever be hit because
 		//       gorilla/websocket will reject the conncetion
 		//       if the subprotocol isn't registered

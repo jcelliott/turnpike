@@ -210,8 +210,10 @@ func (d *defaultDealer) Error(sess *Session, msg *Error) {
 }
 
 func (d *defaultDealer) RemoveSession(sess *Session) {
+	d.Lock()
+	defer d.Unlock()
+
 	// TODO: this is low hanging fruit for optimization
-	// TODO: potential data race here, should lock the map
 	for _, rproc := range d.procedures {
 		if rproc.Endpoint == sess {
 			delete(d.registrations, rproc.Registration)
