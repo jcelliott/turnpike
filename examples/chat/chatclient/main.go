@@ -4,7 +4,7 @@ import (
 	"log"
 	"os"
 
-	"gopkg.in/jcelliott/turnpike.v2"
+	"gopkg.in/beatgammit/turnpike.v2"
 )
 
 const (

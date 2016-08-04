@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/howeyc/gopass"
-	"gopkg.in/jcelliott/turnpike.v2"
+	"gopkg.in/beatgammit/turnpike.v2"
 )
 
 var password []byte
