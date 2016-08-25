@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -30,6 +31,14 @@ type protocol struct {
 	serializer  Serializer
 }
 
+// ConnectionConfig is the configs of a connection.
+type ConnectionConfig struct {
+	MaxMsgSize   int64
+	WriteTimeout time.Duration
+	PingTimeout  time.Duration
+	IdleTimeout  time.Duration
+}
+
 // WebsocketServer handles websocket connections.
 type WebsocketServer struct {
 	Router
@@ -41,6 +50,7 @@ type WebsocketServer struct {
 	TextSerializer Serializer
 	// The serializer to use for binary frames. Defaults to JSONSerializer.
 	BinarySerializer Serializer
+	ConnectionConfig
 
 	lock sync.RWMutex
 }
@@ -69,6 +79,10 @@ func newWebsocketServer(r Router) *WebsocketServer {
 	s := &WebsocketServer{
 		Router:    r,
 		protocols: make(map[string]protocol),
+		ConnectionConfig: ConnectionConfig{
+			// PingTimeout: 3 * time.Minute,
+			WriteTimeout: 10 * time.Second,
+		},
 	}
 	s.Upgrader = &websocket.Upgrader{}
 	s.RegisterProtocol(jsonWebsocketProtocol, websocket.TextMessage, new(JSONSerializer))
@@ -144,10 +158,13 @@ func (s *WebsocketServer) handleWebsocket(conn *websocket.Conn) {
 	}
 
 	peer := websocketPeer{
-		conn:        conn,
-		serializer:  serializer,
-		messages:    make(chan Message, 100),
-		payloadType: payloadType,
+		conn:             conn,
+		serializer:       serializer,
+		sendMsgs:         make(chan Message, 16),
+		messages:         make(chan Message, 100),
+		payloadType:      payloadType,
+		closing:          make(chan struct{}),
+		ConnectionConfig: &s.ConnectionConfig,
 	}
 	go peer.run()
 
