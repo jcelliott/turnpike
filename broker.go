@@ -71,13 +71,13 @@ func (br *defaultBroker) Publish(sess *Session, msg *Publish) {
 		event.Subscription = id
 		// don't send event to publisher
 		if sub != pub || !excludePublisher {
-			sub.Send(&event)
+			go sub.Send(&event)
 		}
 	}
 
 	// only send published message if acknowledge is present and set to true
 	if doPub, _ := msg.Options["acknowledge"].(bool); doPub {
-		pub.Send(&Published{Request: msg.Request, Publication: pubID})
+		go pub.Send(&Published{Request: msg.Request, Publication: pubID})
 	}
 }
 
@@ -94,7 +94,7 @@ func (br *defaultBroker) Subscribe(sess *Session, msg *Subscribe) {
 
 	br.subscriptions[id] = msg.Topic
 
-	sess.Peer.Send(&Subscribed{Request: msg.Request, Subscription: id})
+	go sess.Peer.Send(&Subscribed{Request: msg.Request, Subscription: id})
 }
 
 func (br *defaultBroker) Unsubscribe(sess *Session, msg *Unsubscribe) {
@@ -124,5 +124,5 @@ func (br *defaultBroker) Unsubscribe(sess *Session, msg *Unsubscribe) {
 			delete(br.routes, topic)
 		}
 	}
-	sess.Peer.Send(&Unsubscribed{Request: msg.Request})
+	go sess.Peer.Send(&Unsubscribed{Request: msg.Request})
 }
