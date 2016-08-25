@@ -194,6 +194,7 @@ func (r *Realm) handleSession(sess *Session) {
 		defer r.lock.RUnlock()
 
 		r.clients.Remove(string(sess.Id))
+		r.Broker.RemoveSession(sess)
 		r.Dealer.RemoveSession(sess)
 		r.localClient.onLeave(sess.Id)
 	}()

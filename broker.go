@@ -13,12 +13,15 @@ type Broker interface {
 	Subscribe(*Session, *Subscribe)
 	// Unsubscribes from messages on a URI.
 	Unsubscribe(*Session, *Unsubscribe)
+	// Remove all of session's subscriptions.
+	RemoveSession(*Session)
 }
 
 // A super simple broker that matches URIs to Subscribers.
 type defaultBroker struct {
 	routes        map[URI]map[ID]Sender
 	subscriptions map[ID]URI
+	subscribers   map[*Session][]ID
 
 	lastRequestId ID
 
@@ -31,6 +34,7 @@ func NewDefaultBroker() Broker {
 	return &defaultBroker{
 		routes:        make(map[URI]map[ID]Sender),
 		subscriptions: make(map[ID]URI),
+		subscribers:   make(map[*Session][]ID),
 	}
 }
 
@@ -91,38 +95,78 @@ func (br *defaultBroker) Subscribe(sess *Session, msg *Subscribe) {
 	}
 	id := br.nextRequestId()
 	br.routes[msg.Topic][id] = sess.Peer
-
 	br.subscriptions[id] = msg.Topic
 
+	// subscribers
+	ids, ok := br.subscribers[sess]
+	if !ok {
+		ids = []ID{}
+	}
+	ids = append(ids, id)
+	br.subscribers[sess] = ids
+
 	go sess.Peer.Send(&Subscribed{Request: msg.Request, Subscription: id})
+}
+
+func (br *defaultBroker) RemoveSession(sess *Session) {
+	log.Printf("broker remove peer %p", sess)
+	br.Lock()
+	defer br.Unlock()
+
+	for _, id := range br.subscribers[sess] {
+		br.unsubscribe(sess, id)
+	}
 }
 
 func (br *defaultBroker) Unsubscribe(sess *Session, msg *Unsubscribe) {
 	br.Lock()
 	defer br.Unlock()
 
-	topic, ok := br.subscriptions[msg.Subscription]
-	if !ok {
+	if !br.unsubscribe(sess, msg.Subscription) {
 		err := &Error{
 			Type:    msg.MessageType(),
 			Request: msg.Request,
 			Error:   ErrNoSuchSubscription,
 		}
-		sess.Peer.Send(err)
+		go sess.Peer.Send(err)
 		log.Printf("Error unsubscribing: no such subscription %v", msg.Subscription)
 		return
 	}
-	delete(br.subscriptions, msg.Subscription)
+
+	go sess.Peer.Send(&Unsubscribed{Request: msg.Request})
+}
+
+func (br *defaultBroker) unsubscribe(sess *Session, id ID) bool {
+	log.Printf("broker unsubscribing: %p, %d", &sess, id)
+	topic, ok := br.subscriptions[id]
+	if !ok {
+		return false
+	}
+	delete(br.subscriptions, id)
 
 	if r, ok := br.routes[topic]; !ok {
 		log.Printf("Error unsubscribing: unable to find routes for %s topic", topic)
-	} else if _, ok := r[msg.Subscription]; !ok {
-		log.Printf("Error unsubscribing: %s route does not exist for %v subscription", topic, msg.Subscription)
+	} else if _, ok := r[id]; !ok {
+		log.Printf("Error unsubscribing: %s route does not exist for %v subscription", topic, id)
 	} else {
-		delete(r, msg.Subscription)
+		delete(r, id)
 		if len(r) == 0 {
 			delete(br.routes, topic)
 		}
 	}
-	go sess.Peer.Send(&Unsubscribed{Request: msg.Request})
+
+	// subscribers
+	ids := br.subscribers[sess][:0]
+	for _, id := range br.subscribers[sess] {
+		if id != id {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
+		delete(br.subscribers, sess)
+	} else {
+		br.subscribers[sess] = ids
+	}
+
+	return true
 }
