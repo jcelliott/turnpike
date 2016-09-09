@@ -31,7 +31,7 @@ func main() {
 	fmt.Print("Password: ")
 	password = gopass.GetPasswd()
 
-	c, err := turnpike.NewWebsocketClient(turnpike.JSON, "ws://localhost:8000/ws")
+	c, err := turnpike.NewWebsocketClient(turnpike.JSON, "ws://localhost:8000/ws", nil)
 	if err != nil {
 		log.Fatal(err)
 	}
