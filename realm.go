@@ -151,6 +151,22 @@ func (r *Realm) handleSession(sess Session) {
 		log.Printf("[%s] %s: %+v", sess, msg.MessageType(), msg)
 		if isAuthz, err := r.Authorizer.Authorize(sess, msg); !isAuthz {
 			errMsg := &Error{Type: msg.MessageType()}
+			switch msg := msg.(type) {
+			case *Publish:
+				errMsg.Request = msg.Request
+			case *Subscribe:
+				errMsg.Request = msg.Request
+			case *Unsubscribe:
+				errMsg.Request = msg.Request
+			case *Register:
+				errMsg.Request = msg.Request
+			case *Unregister:
+				errMsg.Request = msg.Request
+			case *Call:
+				errMsg.Request = msg.Request
+			case *Yield:
+				errMsg.Request = msg.Request
+			}
 			if err != nil {
 				errMsg.Error = ErrAuthorizationFailed
 				log.Printf("[%s] authorization failed: %v", sess, err)
