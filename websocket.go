@@ -19,14 +19,14 @@ type websocketPeer struct {
 }
 
 // NewWebsocketPeer connects to the websocket server at the specified url.
-func NewWebsocketPeer(serialization Serialization, url, origin string, tlscfg *tls.Config, dialer *websocket.Dialer) (Peer, error) {
+func NewWebsocketPeer(serialization Serialization, url string, tlscfg *tls.Config, dialer *websocket.Dialer) (Peer, error) {
 	switch serialization {
 	case JSON:
-		return newWebsocketPeer(url, jsonWebsocketProtocol, origin,
+		return newWebsocketPeer(url, jsonWebsocketProtocol,
 			new(JSONSerializer), websocket.TextMessage, tlscfg, dialer,
 		)
 	case MSGPACK:
-		return newWebsocketPeer(url, msgpackWebsocketProtocol, origin,
+		return newWebsocketPeer(url, msgpackWebsocketProtocol,
 			new(MessagePackSerializer), websocket.BinaryMessage, tlscfg, dialer,
 		)
 	default:
@@ -34,7 +34,7 @@ func NewWebsocketPeer(serialization Serialization, url, origin string, tlscfg *t
 	}
 }
 
-func newWebsocketPeer(url, protocol, origin string, serializer Serializer, payloadType int, tlscfg *tls.Config, dialer *websocket.Dialer) (Peer, error) {
+func newWebsocketPeer(url, protocol string, serializer Serializer, payloadType int, tlscfg *tls.Config, dialer *websocket.Dialer) (Peer, error) {
 	switch dialer {
 	case nil:
 		dialer = &websocket.Dialer{
