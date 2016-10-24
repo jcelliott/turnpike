@@ -1,0 +1,97 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "P3zGmsNjW8m15a+nks4FdVpFKwE=",
+			"path": "github.com/gopherjs/gopherjs/js",
+			"revision": "6f5a3c4a73badf117936d7d61a046e2fab8e2adb",
+			"revisionTime": "2016-10-23T18:47:00Z"
+		},
+		{
+			"checksumSHA1": "O9Gjl1F5NFZoi4HgmkQohzwl+dk=",
+			"path": "github.com/gorilla/websocket",
+			"revision": "0b847f2facc24ec406130a05bb1bb72d41993b05",
+			"revisionTime": "2016-10-21T19:35:05Z"
+		},
+		{
+			"checksumSHA1": "lJDwzzEBuS9sjxVOSsq7+rvw+cA=",
+			"path": "github.com/howeyc/gopass",
+			"revision": "f5387c492211eb133053880d23dfae62aa14123d",
+			"revisionTime": "2016-10-03T13:09:00Z"
+		},
+		{
+			"checksumSHA1": "tewA7jXVGCw1zb5mA0BDecWi4iQ=",
+			"path": "github.com/jtolds/gls",
+			"revision": "8ddce2a84170772b95dd5d576c48d517b22cac63",
+			"revisionTime": "2016-01-05T22:08:40Z"
+		},
+		{
+			"checksumSHA1": "S31nRlUmg3MIVUTaLPjrjCnUYvQ=",
+			"path": "github.com/rthornton128/goncurses",
+			"revision": "ef16d4e36502edc58c45a2c896e00ef8d513dc78",
+			"revisionTime": "2016-04-26T04:27:36Z"
+		},
+		{
+			"checksumSHA1": "zmC8/3V4ls53DJlNTKDZwPSC/dA=",
+			"path": "github.com/satori/go.uuid",
+			"revision": "b061729afc07e77a8aa4fad0a2fd840958f1942a",
+			"revisionTime": "2016-09-27T10:08:44Z"
+		},
+		{
+			"checksumSHA1": "6AYg4fjEvFuAVN3wHakGApjhZAM=",
+			"path": "github.com/smartystreets/assertions",
+			"revision": "2063fd1cc7c975db70502811a34b06ad034ccdf2",
+			"revisionTime": "2016-07-07T19:03:55Z"
+		},
+		{
+			"checksumSHA1": "Vzb+dEH/LTYbvr8RXHmt6xJHz04=",
+			"path": "github.com/smartystreets/assertions/internal/go-render/render",
+			"revision": "2063fd1cc7c975db70502811a34b06ad034ccdf2",
+			"revisionTime": "2016-07-07T19:03:55Z"
+		},
+		{
+			"checksumSHA1": "SLC6TfV4icQA9l8YJQu8acJYbuo=",
+			"path": "github.com/smartystreets/assertions/internal/oglematchers",
+			"revision": "2063fd1cc7c975db70502811a34b06ad034ccdf2",
+			"revisionTime": "2016-07-07T19:03:55Z"
+		},
+		{
+			"checksumSHA1": "/mwAihy9AmznMzmbPQ5nWJXBiRU=",
+			"path": "github.com/smartystreets/goconvey/convey",
+			"revision": "7befa7fd6e2e8ca28d2b94f2d39111929904b08d",
+			"revisionTime": "2016-09-28T20:55:23Z"
+		},
+		{
+			"checksumSHA1": "9LakndErFi5uCXtY1KWl0iRnT4c=",
+			"path": "github.com/smartystreets/goconvey/convey/gotest",
+			"revision": "7befa7fd6e2e8ca28d2b94f2d39111929904b08d",
+			"revisionTime": "2016-09-28T20:55:23Z"
+		},
+		{
+			"checksumSHA1": "FWDhk37bhAwZ2363D/L2xePwR64=",
+			"path": "github.com/smartystreets/goconvey/convey/reporting",
+			"revision": "7befa7fd6e2e8ca28d2b94f2d39111929904b08d",
+			"revisionTime": "2016-09-28T20:55:23Z"
+		},
+		{
+			"checksumSHA1": "jfIUoeCY4uLz1zCgnCxndi5/UNE=",
+			"path": "github.com/ugorji/go/codec",
+			"revision": "faddd6128c66c4708f45fdc007f575f75e592a3c",
+			"revisionTime": "2016-09-28T01:52:44Z"
+		},
+		{
+			"checksumSHA1": "9C4Av3ypK5pi173F76ogJT/d8x4=",
+			"path": "golang.org/x/crypto/ssh/terminal",
+			"revision": "1150b8bd09e53aea1d415621adae9bad665061a1",
+			"revisionTime": "2016-10-21T22:59:10Z"
+		},
+		{
+			"checksumSHA1": "aVgPDgwY3/t4J/JOw9H3FVMHqh0=",
+			"path": "golang.org/x/sys/unix",
+			"revision": "c200b10b5d5e122be351b67af224adc6128af5bf",
+			"revisionTime": "2016-10-22T18:22:21Z"
+		}
+	],
+	"rootPath": "gopkg.in/jcelliott/turnpike.v2"
+}
