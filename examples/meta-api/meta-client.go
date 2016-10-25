@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	c, err := turnpike.NewWebsocketClient(turnpike.JSON, "ws://localhost:8000/", nil)
+	c, err := turnpike.NewWebsocketClient(turnpike.JSON, "ws://localhost:8000/", nil, nil)
 	if err != nil {
 		log.Fatal(err)
 	}

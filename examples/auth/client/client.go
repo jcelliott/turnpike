@@ -35,7 +35,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	c, err := turnpike.NewWebsocketClient(turnpike.JSON, "ws://localhost:8000/ws", nil)
+	c, err := turnpike.NewWebsocketClient(turnpike.JSON, "ws://localhost:8000/ws", nil, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
