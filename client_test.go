@@ -86,7 +86,7 @@ func TestRemoteCall(t *testing.T) {
 
 				Convey("The caller calls the callee's remote method", func() {
 					callArgs := []interface{}{5100}
-					result, err := caller.Call(methodName, callArgs, make(map[string]interface{}))
+					result, err := caller.Call(methodName, make(map[string]interface{}), callArgs, make(map[string]interface{}))
 
 					Convey("And succeeds at multiplying the number by 2", func() {
 						So(err, ShouldBeNil)
@@ -103,7 +103,7 @@ func TestRemoteCall(t *testing.T) {
 
 				Convey("Calling the unregistered procedure", func() {
 					callArgs := []interface{}{5100}
-					result, err := caller.Call(methodName, callArgs, make(map[string]interface{}))
+					result, err := caller.Call(methodName, make(map[string]interface{}), callArgs, make(map[string]interface{}))
 
 					Convey("Should result in an error", func() {
 						So(err, ShouldNotBeNil)
