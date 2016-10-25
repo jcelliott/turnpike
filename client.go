@@ -390,12 +390,12 @@ func (c *Client) waitOnListener(id ID) (msg Message, err error) {
 type EventHandler func(args []interface{}, kwargs map[string]interface{})
 
 // Subscribe registers the EventHandler to be called for every message in the provided topic.
-func (c *Client) Subscribe(topic string, fn EventHandler) error {
+func (c *Client) Subscribe(topic string, options map[string]interface{}, fn EventHandler) error {
 	id := NewID()
 	c.registerListener(id)
 	sub := &Subscribe{
 		Request: id,
-		Options: make(map[string]interface{}),
+		Options: options,
 		Topic:   URI(topic),
 	}
 	err := c.Send(sub)
@@ -574,10 +574,10 @@ func (c *Client) Unregister(procedure string) error {
 }
 
 // Publish publishes an EVENT to all subscribed peers.
-func (c *Client) Publish(topic string, args []interface{}, kwargs map[string]interface{}) error {
+func (c *Client) Publish(topic string, options map[string]interface{}, args []interface{}, kwargs map[string]interface{}) error {
 	return c.Send(&Publish{
 		Request:     NewID(),
-		Options:     make(map[string]interface{}),
+		Options:     options,
 		Topic:       URI(topic),
 		Arguments:   args,
 		ArgumentsKw: kwargs,

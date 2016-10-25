@@ -103,15 +103,12 @@ func (r *Realm) run() {
 	}
 }
 
-// func (r *Realm) metaHandler(c *Client) {
-// }
-
 func (l *localClient) onJoin(details map[string]interface{}) {
-	l.Publish("wamp.session.on_join", []interface{}{details}, nil)
+	l.Publish("wamp.session.on_join", nil, []interface{}{details}, nil)
 }
 
 func (l *localClient) onLeave(session ID) {
-	l.Publish("wamp.session.on_leave", []interface{}{session}, nil)
+	l.Publish("wamp.session.on_leave", nil, []interface{}{session}, nil)
 }
 
 func (r *Realm) handleSession(sess Session) {
