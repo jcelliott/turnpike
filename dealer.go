@@ -35,7 +35,7 @@ type defaultDealer struct {
 	// link the invocation ID to the call ID
 	invocations map[ID]ID
 	// keep track of callee's registrations
-	callees map[Sender]map[ID]bool
+	callees map[Sender]map[ID]struct{}
 	// protect maps from concurrent access
 	lock sync.Mutex
 }
@@ -47,7 +47,7 @@ func NewDefaultDealer() Dealer {
 		registrations: make(map[URI]ID),
 		calls:         make(map[ID]Sender),
 		invocations:   make(map[ID]ID),
-		callees:       make(map[Sender]map[ID]bool),
+		callees:       make(map[Sender]map[ID]struct{}),
 	}
 }
 
@@ -211,9 +211,9 @@ func (d *defaultDealer) RemovePeer(callee Sender) {
 
 func (d *defaultDealer) addCalleeRegistration(callee Sender, reg ID) {
 	if _, ok := d.callees[callee]; !ok {
-		d.callees[callee] = make(map[ID]bool)
+		d.callees[callee] = make(map[ID]struct{})
 	}
-	d.callees[callee][reg] = true
+	d.callees[callee][reg] = struct{}{}
 }
 
 func (d *defaultDealer) removeCalleeRegistration(callee Sender, reg ID) {
