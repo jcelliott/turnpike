@@ -38,8 +38,8 @@ type Router interface {
 	Close() error
 	RegisterRealm(URI, Realm) error
 	GetLocalPeer(URI, map[string]interface{}) (Peer, error)
-	AddSessionOpenCallback(func(uint, string))
-	AddSessionCloseCallback(func(uint, string))
+	AddSessionOpenCallback(func(*Session, string))
+	AddSessionCloseCallback(func(*Session, string))
 }
 
 // DefaultRouter is the default WAMP router implementation.
@@ -47,24 +47,24 @@ type defaultRouter struct {
 	realms                map[URI]Realm
 	closing               bool
 	closeLock             sync.Mutex
-	sessionOpenCallbacks  []func(uint, string)
-	sessionCloseCallbacks []func(uint, string)
+	sessionOpenCallbacks  []func(*Session, string)
+	sessionCloseCallbacks []func(*Session, string)
 }
 
 // NewDefaultRouter creates a very basic WAMP router.
 func NewDefaultRouter() Router {
 	return &defaultRouter{
 		realms:                make(map[URI]Realm),
-		sessionOpenCallbacks:  []func(uint, string){},
-		sessionCloseCallbacks: []func(uint, string){},
+		sessionOpenCallbacks:  []func(*Session, string){},
+		sessionCloseCallbacks: []func(*Session, string){},
 	}
 }
 
-func (r *defaultRouter) AddSessionOpenCallback(fn func(uint, string)) {
+func (r *defaultRouter) AddSessionOpenCallback(fn func(*Session, string)) {
 	r.sessionOpenCallbacks = append(r.sessionOpenCallbacks, fn)
 }
 
-func (r *defaultRouter) AddSessionCloseCallback(fn func(uint, string)) {
+func (r *defaultRouter) AddSessionCloseCallback(fn func(*Session, string)) {
 	r.sessionCloseCallbacks = append(r.sessionCloseCallbacks, fn)
 }
 
@@ -156,13 +156,13 @@ func (r *defaultRouter) Accept(client Peer) error {
 		kill:    make(chan URI, 1),
 	}
 	for _, callback := range r.sessionOpenCallbacks {
-		go callback(uint(sess.Id), string(hello.Realm))
+		go callback(sess, string(hello.Realm))
 	}
 	go func() {
 		realm.handleSession(sess)
 		sess.Close()
 		for _, callback := range r.sessionCloseCallbacks {
-			go callback(uint(sess.Id), string(hello.Realm))
+			go callback(sess, string(hello.Realm))
 		}
 	}()
 	return nil
