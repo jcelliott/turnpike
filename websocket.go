@@ -3,6 +3,7 @@ package turnpike
 import (
 	"crypto/tls"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -37,6 +38,7 @@ func newWebsocketPeer(url, protocol, origin string, serializer Serializer, paylo
 	dialer := websocket.Dialer{
 		Subprotocols:    []string{protocol},
 		TLSClientConfig: tlscfg,
+		Proxy:           http.ProxyFromEnvironment,
 		NetDial:         dial,
 	}
 	conn, _, err := dialer.Dial(url, nil)
