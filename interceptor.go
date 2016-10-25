@@ -6,7 +6,7 @@ package turnpike
 // Intercept takes the session and (a pointer to) the message, and (possibly)
 // modifies the message.
 type Interceptor interface {
-	Intercept(session Session, msg *Message)
+	Intercept(session *Session, msg *Message)
 }
 
 // DefaultInterceptor does nothing :)
@@ -18,5 +18,5 @@ func NewDefaultInterceptor() Interceptor {
 	return &defaultInterceptor{}
 }
 
-func (di *defaultInterceptor) Intercept(session Session, msg *Message) {
+func (di *defaultInterceptor) Intercept(session *Session, msg *Message) {
 }

@@ -24,7 +24,7 @@ type Realm struct {
 	Authenticators   map[string]Authenticator
 	// DefaultAuth      func(details map[string]interface{}) (map[string]interface{}, error)
 	AuthTimeout time.Duration
-	clients     map[ID]Session
+	clients     map[ID]*Session
 	localClient
 	acts chan func()
 }
@@ -35,11 +35,11 @@ type localClient struct {
 
 func (r *Realm) getPeer(details map[string]interface{}) (Peer, error) {
 	peerA, peerB := localPipe()
-	sess := Session{Peer: peerA, Id: NewID(), Details: details, kill: make(chan URI, 1)}
 	if details == nil {
 		details = make(map[string]interface{})
 	}
-	go r.handleSession(sess)
+	sess := Session{Peer: peerA, Id: NewID(), Details: details, kill: make(chan URI, 1)}
+	go r.handleSession(&sess)
 	log.Println("Established internal session:", sess)
 	return peerB, nil
 }
@@ -71,7 +71,7 @@ func (r Realm) Close() {
 }
 
 func (r *Realm) init() {
-	r.clients = make(map[ID]Session)
+	r.clients = make(map[ID]*Session)
 	r.acts = make(chan func())
 	p, _ := r.getPeer(nil)
 	r.localClient.Client = NewClient(p)
@@ -111,7 +111,7 @@ func (l *localClient) onLeave(session ID) {
 	l.Publish("wamp.session.on_leave", nil, []interface{}{session}, nil)
 }
 
-func (r *Realm) handleSession(sess Session) {
+func (r *Realm) handleSession(sess *Session) {
 	sync := make(chan struct{})
 	r.acts <- func() {
 		r.clients[sess.Id] = sess
@@ -122,7 +122,8 @@ func (r *Realm) handleSession(sess Session) {
 	defer func() {
 		r.acts <- func() {
 			delete(r.clients, sess.Id)
-			r.Dealer.RemovePeer(sess.Peer)
+			r.Dealer.RemoveSession(sess)
+			r.Broker.RemoveSession(sess)
 			r.onLeave(sess.Id)
 		}
 	}()
@@ -185,27 +186,27 @@ func (r *Realm) handleSession(sess Session) {
 
 		// Broker messages
 		case *Publish:
-			r.Broker.Publish(sess.Peer, msg)
+			r.Broker.Publish(sess, msg)
 		case *Subscribe:
-			r.Broker.Subscribe(sess.Peer, msg)
+			r.Broker.Subscribe(sess, msg)
 		case *Unsubscribe:
-			r.Broker.Unsubscribe(sess.Peer, msg)
+			r.Broker.Unsubscribe(sess, msg)
 
 		// Dealer messages
 		case *Register:
-			r.Dealer.Register(sess.Peer, msg)
+			r.Dealer.Register(sess, msg)
 		case *Unregister:
-			r.Dealer.Unregister(sess.Peer, msg)
+			r.Dealer.Unregister(sess, msg)
 		case *Call:
-			r.Dealer.Call(sess.Peer, msg)
+			r.Dealer.Call(sess, msg)
 		case *Yield:
-			r.Dealer.Yield(sess.Peer, msg)
+			r.Dealer.Yield(sess, msg)
 
 		// Error messages
 		case *Error:
 			if msg.Type == INVOCATION {
 				// the only type of ERROR message the router should receive
-				r.Dealer.Error(sess.Peer, msg)
+				r.Dealer.Error(sess, msg)
 			} else {
 				log.Printf("invalid ERROR message received: %v", msg)
 			}

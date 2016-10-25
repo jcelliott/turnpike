@@ -9,10 +9,11 @@ import (
 func TestRegister(t *testing.T) {
 	Convey("Registering a procedure", t, func() {
 		dealer := NewDefaultDealer().(*defaultDealer)
-		callee := &TestSender{}
+		callee := &TestPeer{}
 		testProcedure := URI("turnpike.test.endpoint")
 		msg := &Register{Request: 123, Procedure: testProcedure}
-		dealer.Register(callee, msg)
+		sess := &Session{Peer: callee}
+		dealer.Register(sess, msg)
 
 		Convey("The callee should have received a REGISTERED message", func() {
 			reg := callee.received.(*Registered).Registration
@@ -31,7 +32,7 @@ func TestRegister(t *testing.T) {
 
 		Convey("The same procedure cannot be registered more than once", func() {
 			msg := &Register{Request: 321, Procedure: testProcedure}
-			dealer.Register(callee, msg)
+			dealer.Register(sess, msg)
 			err := callee.received.(*Error)
 			So(err.Error, ShouldEqual, ErrProcedureAlreadyExists)
 			So(err.Details, ShouldNotBeNil)
@@ -41,15 +42,16 @@ func TestRegister(t *testing.T) {
 
 func TestUnregister(t *testing.T) {
 	dealer := NewDefaultDealer().(*defaultDealer)
-	callee := &TestSender{}
+	callee := &TestPeer{}
 	testProcedure := URI("turnpike.test.endpoint")
 	msg := &Register{Request: 123, Procedure: testProcedure}
-	dealer.Register(callee, msg)
+	sess := &Session{Peer: callee}
+	dealer.Register(sess, msg)
 	reg := callee.received.(*Registered).Registration
 
 	Convey("Unregistering a procedure", t, func() {
 		msg := &Unregister{Request: 124, Registration: reg}
-		dealer.Unregister(callee, msg)
+		dealer.Unregister(sess, msg)
 
 		Convey("The callee should have received an UNREGISTERED message", func() {
 			unreg := callee.received.(*Unregistered).Request
@@ -68,15 +70,17 @@ func TestUnregister(t *testing.T) {
 func TestCall(t *testing.T) {
 	Convey("With a procedure registered", t, func() {
 		dealer := NewDefaultDealer().(*defaultDealer)
-		callee := &TestSender{}
+		callee := &TestPeer{}
 		testProcedure := URI("turnpike.test.endpoint")
 		msg := &Register{Request: 123, Procedure: testProcedure}
-		dealer.Register(callee, msg)
-		caller := &TestSender{}
+		sess := &Session{Peer: callee}
+		dealer.Register(sess, msg)
+		caller := &TestPeer{}
+		callerSession := &Session{Peer: caller}
 
 		Convey("Calling an invalid procedure", func() {
 			msg := &Call{Request: 124, Procedure: URI("turnpike.test.bad")}
-			dealer.Call(caller, msg)
+			dealer.Call(callerSession, msg)
 
 			Convey("The caller should have received an ERROR message", func() {
 				err := caller.received.(*Error)
@@ -87,7 +91,7 @@ func TestCall(t *testing.T) {
 
 		Convey("Calling a valid procedure", func() {
 			msg := &Call{Request: 125, Procedure: testProcedure}
-			dealer.Call(caller, msg)
+			dealer.Call(callerSession, msg)
 
 			Convey("The callee should have received an INVOCATION message", func() {
 				So(callee.received.MessageType(), ShouldEqual, INVOCATION)
@@ -95,7 +99,7 @@ func TestCall(t *testing.T) {
 
 				Convey("And the callee responds with a YIELD message", func() {
 					msg := &Yield{Request: inv.Request}
-					dealer.Yield(callee, msg)
+					dealer.Yield(sess, msg)
 
 					Convey("The caller should have received a RESULT message", func() {
 						So(caller.received.MessageType(), ShouldEqual, RESULT)
@@ -105,7 +109,7 @@ func TestCall(t *testing.T) {
 
 				Convey("And the callee responds with an ERROR message", func() {
 					msg := &Error{Request: inv.Request}
-					dealer.Error(callee, msg)
+					dealer.Error(sess, msg)
 
 					Convey("The caller should have received an ERROR message", func() {
 						So(caller.received.MessageType(), ShouldEqual, ERROR)
@@ -120,24 +124,23 @@ func TestCall(t *testing.T) {
 func TestRemovePeer(t *testing.T) {
 	Convey("With a procedure registered", t, func() {
 		dealer := NewDefaultDealer().(*defaultDealer)
-		callee := &TestSender{}
+		callee := &TestPeer{}
 		testProcedure := URI("turnpike.test.endpoint")
 		msg := &Register{Request: 123, Procedure: testProcedure}
-		dealer.Register(callee, msg)
+		sess := &Session{Peer: callee}
+		dealer.Register(sess, msg)
 		reg := callee.received.(*Registered).Registration
 		So(dealer.registrations, ShouldContainKey, testProcedure)
 		So(dealer.procedures, ShouldContainKey, reg)
-		So(dealer.callees[callee], ShouldContainKey, reg)
 
 		Convey("Calling RemoveSession should remove the registration", func() {
-			dealer.RemovePeer(callee)
+			dealer.RemoveSession(sess)
 			So(dealer.registrations, ShouldNotContainKey, testProcedure)
 			So(dealer.procedures, ShouldNotContainKey, reg)
-			So(dealer.callees[callee], ShouldNotContainKey, reg)
 
 			Convey("And registering the endpoint again should succeed", func() {
 				msg.Request = 124
-				dealer.Register(callee, msg)
+				dealer.Register(sess, msg)
 				So(callee.received.MessageType(), ShouldEqual, REGISTERED)
 			})
 		})
