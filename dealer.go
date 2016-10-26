@@ -188,6 +188,7 @@ func (d *defaultDealer) Error(peer *Session, msg *Error) {
 			caller.Send(&Error{
 				Type:        CALL,
 				Request:     callID,
+				Error:       msg.Error,
 				Details:     make(map[string]interface{}),
 				Arguments:   msg.Arguments,
 				ArgumentsKw: msg.ArgumentsKw,
