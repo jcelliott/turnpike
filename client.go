@@ -54,7 +54,7 @@ type eventDesc struct {
 // NewWebsocketClient creates a new websocket client connected to the specified
 // `url` and using the specified `serialization`.
 func NewWebsocketClient(serialization Serialization, url string, tlscfg *tls.Config, dial DialFunc) (*Client, error) {
-	p, err := NewWebsocketPeer(serialization, url, "", tlscfg, dial)
+	p, err := NewWebsocketPeer(serialization, url, tlscfg, dial)
 	if err != nil {
 		return nil, err
 	}

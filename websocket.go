@@ -19,14 +19,14 @@ type websocketPeer struct {
 	sendMutex   sync.Mutex
 }
 
-func NewWebsocketPeer(serialization Serialization, url, origin string, tlscfg *tls.Config, dial DialFunc) (Peer, error) {
+func NewWebsocketPeer(serialization Serialization, url string, tlscfg *tls.Config, dial DialFunc) (Peer, error) {
 	switch serialization {
 	case JSON:
-		return newWebsocketPeer(url, jsonWebsocketProtocol, origin,
+		return newWebsocketPeer(url, jsonWebsocketProtocol,
 			new(JSONSerializer), websocket.TextMessage, tlscfg, dial,
 		)
 	case MSGPACK:
-		return newWebsocketPeer(url, msgpackWebsocketProtocol, origin,
+		return newWebsocketPeer(url, msgpackWebsocketProtocol,
 			new(MessagePackSerializer), websocket.BinaryMessage, tlscfg, dial,
 		)
 	default:
@@ -34,7 +34,7 @@ func NewWebsocketPeer(serialization Serialization, url, origin string, tlscfg *t
 	}
 }
 
-func newWebsocketPeer(url, protocol, origin string, serializer Serializer, payloadType int, tlscfg *tls.Config, dial DialFunc) (Peer, error) {
+func newWebsocketPeer(url, protocol string, serializer Serializer, payloadType int, tlscfg *tls.Config, dial DialFunc) (Peer, error) {
 	dialer := websocket.Dialer{
 		Subprotocols:    []string{protocol},
 		TLSClientConfig: tlscfg,
