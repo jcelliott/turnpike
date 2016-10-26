@@ -90,6 +90,7 @@ func (r *Realm) init() {
 	if r.AuthTimeout == 0 {
 		r.AuthTimeout = defaultAuthTimeout
 	}
+	go r.localClient.Receive()
 	go r.run()
 }
 
