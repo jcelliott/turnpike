@@ -318,6 +318,9 @@ func (c *Client) registerListener(id ID) {
 }
 
 func (c *Client) unregisterListener(id ID) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
 	log.Println("unregister listener:", id)
 	delete(c.listeners, id)
 }
