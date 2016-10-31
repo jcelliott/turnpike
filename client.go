@@ -317,6 +317,11 @@ func (c *Client) registerListener(id ID) {
 	c.listeners[id] = wait
 }
 
+func (c *Client) unregisterListener(id ID) {
+	log.Println("unregister listener:", id)
+	delete(c.listeners, id)
+}
+
 func (c *Client) waitOnListener(id ID) (msg Message, err error) {
 	log.Println("wait on listener:", id)
 	c.lock.RLock()
@@ -341,6 +346,9 @@ type EventHandler func(args []interface{}, kwargs map[string]interface{})
 func (c *Client) Subscribe(topic string, fn EventHandler) error {
 	id := NewID()
 	c.registerListener(id)
+	// TODO: figure out where to clean this up
+	// defer c.unregisterListener(id)
+
 	sub := &Subscribe{
 		Request: id,
 		Options: make(map[string]interface{}),
@@ -386,6 +394,8 @@ func (c *Client) Unsubscribe(topic string) error {
 
 	id := NewID()
 	c.registerListener(id)
+	defer c.unregisterListener(id)
+
 	sub := &Unsubscribe{
 		Request:      id,
 		Subscription: subscriptionID,
@@ -418,6 +428,9 @@ type MethodHandler func(
 func (c *Client) Register(procedure string, fn MethodHandler, options map[string]interface{}) error {
 	id := NewID()
 	c.registerListener(id)
+	// TODO: figure out where to clean this up
+	// defer c.unregisterListener(id)
+
 	register := &Register{
 		Request:   id,
 		Options:   options,
@@ -475,6 +488,8 @@ func (c *Client) Unregister(procedure string) error {
 	}
 	id := NewID()
 	c.registerListener(id)
+	defer c.unregisterListener(id)
+
 	unregister := &Unregister{
 		Request:      id,
 		Registration: procedureID,
@@ -523,6 +538,7 @@ func (rpc RPCError) Error() string {
 func (c *Client) Call(procedure string, args []interface{}, kwargs map[string]interface{}) (*Result, error) {
 	id := NewID()
 	c.registerListener(id)
+	defer c.unregisterListener(id)
 
 	call := &Call{
 		Request:     id,
