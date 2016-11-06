@@ -124,19 +124,29 @@ func (d *defaultDealer) Call(caller *Session, msg *Call) {
 			})
 		} else {
 			// everything checks out, make the invocation request
-			// TODO: make the Request ID specific to the caller
+			// TODO: make the Request ID specific to the caller <<< wrong solution
 			d.calls[msg.Request] = caller
 			invocationID := NewID()
 			d.invocations[invocationID] = msg.Request
 			d.lock.Unlock()
+			details := map[string]interface{}{};
+
+			// Options{"disclose_me": true} -> Details{"caller": 3335656}
+			if val, ok := msg.Options["disclose_me"]; ok {
+				if disclose, ok := val.(bool); ok && (disclose == true) {
+					details["caller"] = caller.Id
+				}
+			}
+
+			// TODO deal with Details{"trustlevel": 2}
 			rproc.Endpoint.Send(&Invocation{
 				Request:      invocationID,
 				Registration: reg,
-				Details:      map[string]interface{}{},
+				Details:      details,
 				Arguments:    msg.Arguments,
 				ArgumentsKw:  msg.ArgumentsKw,
 			})
-			log.Printf("dispatched CALL %v [%v] to callee as INVOCATION %v",
+			log.Printf("dispatched CALL: %v [%v] to callee as INVOCATION %v",
 				msg.Request, msg.Procedure, invocationID,
 			)
 		}
