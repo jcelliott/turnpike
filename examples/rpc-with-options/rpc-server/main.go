@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"gopkg.in/jcelliott/turnpike.v2"
-	//"github.com/dudochkin-victor/turnpike"
 )
 
 var client *turnpike.Client

@@ -124,7 +124,6 @@ func (d *defaultDealer) Call(caller *Session, msg *Call) {
 			})
 		} else {
 			// everything checks out, make the invocation request
-			// TODO: make the Request ID specific to the caller <<< wrong solution
 			d.calls[msg.Request] = caller
 			invocationID := NewID()
 			d.invocations[invocationID] = msg.Request

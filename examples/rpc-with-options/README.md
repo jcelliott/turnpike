@@ -10,8 +10,3 @@ Implemented 13.3.5. Caller Identification
 4. PROFIT!!!
 
 Now the rpc method knows caller ;)
-
-Check the import which you use.
-Choose proper:
-	"gopkg.in/jcelliott/turnpike.v2"
-	//"github.com/dudochkin-victor/turnpike"
