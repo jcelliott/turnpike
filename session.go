@@ -59,12 +59,21 @@ func (s *localPeer) Receive() <-chan Message {
 	return s.incoming
 }
 
-func (s *localPeer) Send(msg Message) error {
+func (s *localPeer) Send(msg Message) (err error) {
+	defer func() {
+		// just in case Close is called before Send
+		if r := recover(); r != nil {
+			err = fmt.Errorf("Attempt to write after Close()")
+		}
+	}()
 	s.outgoing <- msg
-	return nil
+	return
 }
 
 func (s *localPeer) Close() error {
-	close(s.outgoing)
+	if s.outgoing != nil {
+		close(s.outgoing)
+		s.outgoing = nil
+	}
 	return nil
 }
