@@ -275,7 +275,7 @@ func (c *Client) handleEvent(msg *Event) {
 	sync := make(chan struct{})
 	c.acts <- func() {
 		if event, ok := c.events[msg.Subscription]; ok {
-			go event.handler(msg.Arguments, msg.ArgumentsKw)
+			go event.handler(msg.Arguments, msg.ArgumentsKw, event.topic)
 		} else {
 			log.Println("no handler registered for subscription:", msg.Subscription)
 		}
@@ -387,7 +387,7 @@ func (c *Client) waitOnListener(id ID) (msg Message, err error) {
 }
 
 // EventHandler handles a publish event.
-type EventHandler func(args []interface{}, kwargs map[string]interface{})
+type EventHandler func(args []interface{}, kwargs map[string]interface{}, topic string)
 
 // Subscribe registers the EventHandler to be called for every message in the provided topic.
 func (c *Client) Subscribe(topic string, options map[string]interface{}, fn EventHandler) error {
