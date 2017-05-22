@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -41,7 +42,7 @@ func main() {
 
 	server := &http.Server{
 		Handler: s,
-		Addr:    ":8000",
+		Addr:    fmt.Sprintf(":%d", port),
 	}
 	log.Printf("turnpike server starting on port %d...", port)
 	log.Fatal(server.ListenAndServe())
