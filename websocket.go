@@ -164,7 +164,8 @@ func (ep *websocketPeer) run() {
 				log.Println("peer connection closed")
 			} else {
 				log.Println("error reading from peer:", err)
-				if !websocket.IsCloseError(err) {
+				// only expected errors seem to close the connection, so close on any unexpected errors
+				if websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
 					ep.conn.Close()
 				}
 			}
