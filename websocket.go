@@ -19,14 +19,14 @@ type websocketPeer struct {
 	sendMutex   sync.Mutex
 }
 
-func NewWebsocketPeer(serialization Serialization, url string, tlscfg *tls.Config, dial DialFunc) (Peer, error) {
+func NewWebsocketPeer(serialization Serialization, url string, requestHeader http.Header, tlscfg *tls.Config, dial DialFunc) (Peer, error) {
 	switch serialization {
 	case JSON:
-		return newWebsocketPeer(url, jsonWebsocketProtocol,
+		return newWebsocketPeer(url, requestHeader, jsonWebsocketProtocol,
 			new(JSONSerializer), websocket.TextMessage, tlscfg, dial,
 		)
 	case MSGPACK:
-		return newWebsocketPeer(url, msgpackWebsocketProtocol,
+		return newWebsocketPeer(url, requestHeader, msgpackWebsocketProtocol,
 			new(MessagePackSerializer), websocket.BinaryMessage, tlscfg, dial,
 		)
 	default:
@@ -34,14 +34,14 @@ func NewWebsocketPeer(serialization Serialization, url string, tlscfg *tls.Confi
 	}
 }
 
-func newWebsocketPeer(url, protocol string, serializer Serializer, payloadType int, tlscfg *tls.Config, dial DialFunc) (Peer, error) {
+func newWebsocketPeer(url string, reqHeader http.Header, protocol string, serializer Serializer, payloadType int, tlscfg *tls.Config, dial DialFunc) (Peer, error) {
 	dialer := websocket.Dialer{
 		Subprotocols:    []string{protocol},
 		TLSClientConfig: tlscfg,
 		Proxy:           http.ProxyFromEnvironment,
 		NetDial:         dial,
 	}
-	conn, _, err := dialer.Dial(url, nil)
+	conn, _, err := dialer.Dial(url, reqHeader)
 	if err != nil {
 		return nil, err
 	}
