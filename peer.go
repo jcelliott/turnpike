@@ -24,6 +24,9 @@ type Peer interface {
 
 	// Receive returns a channel of messages coming from the peer.
 	Receive() <-chan Message
+
+	//AddIncomeMiddleware implements preprocess income messages
+	AddIncomeMiddleware(f func(Message) (Message, error))
 }
 
 // GetMessageTimeout is a convenience function to get a single message from a
