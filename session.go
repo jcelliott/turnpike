@@ -54,3 +54,7 @@ func (s *localPeer) Close() error {
 	close(s.outgoing)
 	return nil
 }
+
+func (s *localPeer) AddIncomeMiddleware(f func(Message) (Message, error)) {
+
+}
