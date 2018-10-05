@@ -1,6 +1,7 @@
 package turnpike
 
 import (
+	"context"
 	"fmt"
 	"time"
 )
@@ -27,6 +28,9 @@ type Peer interface {
 
 	//AddIncomeMiddleware implements preprocess income messages
 	AddIncomeMiddleware(f func(Message) (Message, error))
+
+	//GetContext returns context
+	GetContext() context.Context
 }
 
 // GetMessageTimeout is a convenience function to get a single message from a

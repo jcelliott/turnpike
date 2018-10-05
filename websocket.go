@@ -1,6 +1,7 @@
 package turnpike
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net/http"
@@ -18,6 +19,7 @@ type websocketPeer struct {
 	payloadType      int
 	closed           bool
 	sendMutex        sync.Mutex
+	ctx              context.Context
 }
 
 func NewWebsocketPeer(serialization Serialization, url string, requestHeader http.Header, tlscfg *tls.Config, dial DialFunc) (Peer, error) {
@@ -86,6 +88,11 @@ func (ep *websocketPeer) AddIncomeMiddleware(f func(Message) (Message, error)) {
 	ep.sendMutex.Lock()
 	ep.incomeMiddleware = f
 	ep.sendMutex.Unlock()
+}
+
+//GetContext returns context
+func (ep *websocketPeer) GetContext() context.Context {
+	return ep.ctx
 }
 
 func (ep *websocketPeer) run() {
