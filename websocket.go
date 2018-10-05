@@ -54,6 +54,7 @@ func newWebsocketPeer(url string, reqHeader http.Header, protocol string, serial
 		serializer:       serializer,
 		payloadType:      payloadType,
 		incomeMiddleware: nil,
+		ctx:              context.TODO(),
 	}
 	go ep.run()
 

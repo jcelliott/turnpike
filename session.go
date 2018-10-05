@@ -28,10 +28,12 @@ func localPipe() (*localPeer, *localPeer) {
 	a := &localPeer{
 		incoming: bToA,
 		outgoing: aToB,
+		ctx:      context.TODO(),
 	}
 	b := &localPeer{
 		incoming: aToB,
 		outgoing: bToA,
+		ctx:      context.TODO(),
 	}
 
 	return a, b
