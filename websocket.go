@@ -1,6 +1,7 @@
 package turnpike
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net/http"
@@ -11,12 +12,14 @@ import (
 )
 
 type websocketPeer struct {
-	conn        *websocket.Conn
-	serializer  Serializer
-	messages    chan Message
-	payloadType int
-	closed      bool
-	sendMutex   sync.Mutex
+	incomeMiddleware func(Message) (Message, error)
+	conn             *websocket.Conn
+	serializer       Serializer
+	messages         chan Message
+	payloadType      int
+	closed           bool
+	sendMutex        sync.Mutex
+	ctx              context.Context
 }
 
 func NewWebsocketPeer(serialization Serialization, url string, requestHeader http.Header, tlscfg *tls.Config, dial DialFunc) (Peer, error) {
@@ -46,10 +49,12 @@ func newWebsocketPeer(url string, reqHeader http.Header, protocol string, serial
 		return nil, err
 	}
 	ep := &websocketPeer{
-		conn:        conn,
-		messages:    make(chan Message, 10),
-		serializer:  serializer,
-		payloadType: payloadType,
+		conn:             conn,
+		messages:         make(chan Message, 10),
+		serializer:       serializer,
+		payloadType:      payloadType,
+		incomeMiddleware: nil,
+		ctx:              context.TODO(),
 	}
 	go ep.run()
 
@@ -79,6 +84,18 @@ func (ep *websocketPeer) Close() error {
 	return ep.conn.Close()
 }
 
+//AddIncomeMiddleware implements preprocess income messages
+func (ep *websocketPeer) AddIncomeMiddleware(f func(Message) (Message, error)) {
+	ep.sendMutex.Lock()
+	ep.incomeMiddleware = f
+	ep.sendMutex.Unlock()
+}
+
+//GetContext returns context
+func (ep *websocketPeer) GetContext() context.Context {
+	return ep.ctx
+}
+
 func (ep *websocketPeer) run() {
 	for {
 		// TODO: use conn.NextMessage() and stream
@@ -102,7 +119,17 @@ func (ep *websocketPeer) run() {
 				log.Println("error deserializing peer message:", err)
 				// TODO: handle error
 			} else {
-				ep.messages <- msg
+				if ep.incomeMiddleware == nil {
+					ep.messages <- msg
+				} else {
+					m, err := ep.incomeMiddleware(msg)
+					if err != nil {
+						log.Println(err)
+					} else {
+						ep.messages <- m
+					}
+				}
+
 			}
 		}
 	}
