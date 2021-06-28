@@ -82,6 +82,9 @@ func (c *Client) run() {
 		if act, ok := <-c.acts; ok {
 			act()
 		} else {
+			for _, lc := range c.listeners {
+				close(lc)
+			}
 			return
 		}
 	}
@@ -377,7 +380,10 @@ func (c *Client) waitOnListener(id ID) (msg Message, err error) {
 		return nil, fmt.Errorf("unknown listener ID: %v", id)
 	}
 	select {
-	case msg = <-wait:
+	case msg, ok = <-wait:
+		if !ok {
+			return nil, fmt.Errorf("listener closed while waiting for message")
+		}
 	case <-time.After(c.ReceiveTimeout):
 		err = fmt.Errorf("timeout while waiting for message")
 	}
