@@ -1,6 +1,7 @@
 package turnpike
 
 import (
+	"context"
 	"fmt"
 )
 
@@ -27,10 +28,12 @@ func localPipe() (*localPeer, *localPeer) {
 	a := &localPeer{
 		incoming: bToA,
 		outgoing: aToB,
+		ctx:      context.TODO(),
 	}
 	b := &localPeer{
 		incoming: aToB,
 		outgoing: bToA,
+		ctx:      context.TODO(),
 	}
 
 	return a, b
@@ -39,6 +42,7 @@ func localPipe() (*localPeer, *localPeer) {
 type localPeer struct {
 	outgoing chan<- Message
 	incoming <-chan Message
+	ctx      context.Context
 }
 
 func (s *localPeer) Receive() <-chan Message {
@@ -53,4 +57,13 @@ func (s *localPeer) Send(msg Message) error {
 func (s *localPeer) Close() error {
 	close(s.outgoing)
 	return nil
+}
+
+//todo
+func (s *localPeer) AddIncomeMiddleware(f func(Message) (Message, error)) {
+
+}
+
+func (s *localPeer) GetContext() context.Context {
+	return s.ctx
 }

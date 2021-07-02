@@ -1,6 +1,7 @@
 package turnpike
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -108,10 +109,10 @@ func (s *WebsocketServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	s.handleWebsocket(conn)
+	s.handleWebsocket(conn, r.Context())
 }
 
-func (s *WebsocketServer) handleWebsocket(conn *websocket.Conn) {
+func (s *WebsocketServer) handleWebsocket(conn *websocket.Conn, ctx context.Context) {
 	var serializer Serializer
 	var payloadType int
 	if proto, ok := s.protocols[conn.Subprotocol()]; ok {
@@ -139,6 +140,7 @@ func (s *WebsocketServer) handleWebsocket(conn *websocket.Conn) {
 		serializer:  serializer,
 		messages:    make(chan Message, 10),
 		payloadType: payloadType,
+		ctx:         ctx,
 	}
 	go peer.run()
 
